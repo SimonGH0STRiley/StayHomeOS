@@ -31,14 +31,7 @@ endif
 	mcopy -D o -i $(DESTDIR)/$(FDDEBUG) $(DESTDIR)/$(COMFILE) ::/
 
 $(DESTDIR)/$(BINFILE): boot.asm
-ifeq (,$(wildcard $(DESTDIR)))
-	mkdir -p $(DESTDIR)
-endif
 	$(ASM) $(ASMBFLAGS) -o $@ $<
 
 $(DESTDIR)/$(COMFILE): boot.asm
-ifeq (,$(wildcard $(DESTDIR)))
-	mkdir -p $(DESTDIR)
-endif
 	$(ASM) $(ASMBFLAGS) -DBOOT_DEBUG -o $@ $<
-

@@ -22,6 +22,11 @@ WSL(Windows Subsystem for Linux) 和 macOS 可能需要手动完成某些步骤�
 
 ## 生成
 
-在终端执行`make`，会在 build 文件夹内生成`boot.img`，里面包含了自行编写的启动扇区(现在还不是操作系统)。
+在终端执行`make`，会在 build 文件夹内生成`boot.img`，里面包含了自行编写的启动扇区(目前生成的文件已经超过512字节，这个功能失效，等文件系统实现后修复)。
 
 如果想生成用于调试的可执行文件，请执行`make debugimg`，执行后会在 build 文件夹内生成两个文件：`boot.com`（可执行文件本身）、`debug.img`（包含boot.com的软盘映像）。前者需要复制到DOS环境中，而后者可以直接被虚拟机加载读取或者写入软盘。
+
+## 调试
+
+如果在FreeDOS上运行，请在启动的时候选择不加载驱动(Emergency Mode)或者加载少量驱动(Safe Mode)。
+虚拟机需要至少8M的RAM。
