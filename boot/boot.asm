@@ -1,505 +1,299 @@
-%include "include/pm.inc"   ; 常量, 宏, 以及一些说明
 
-PageDirBase0        equ	200000h	; 页目录开始地址:	2M
-PageTblBase0        equ	201000h	; 页表开始地址:		2M +  4K
-PageDirBase1        equ	210000h	; 页目录开始地址:	2M + 64K
-PageTblBase1        equ	211000h	; 页表开始地址:		2M + 64K + 4K
+; ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+;                               boot.asm
+; ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+;                                                         TF 141, 2020
+; ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-LinearAddrDemo      equ	00601000h
-ProcFoo             equ	00601000h
-ProcBar             equ	00701000h
-ProcPagingDemo      equ	00501000h
 
-%ifdef BOOT_DEBUG           ; 这个开关由 make 的参数决定
-    org  0100h              ; 调试状态, 做成 .COM 文件, 可调试
+; DEBUG ONLY
+;%define	_BOOT_DEBUG_	; 做 Boot Sector 时一定将此行注释掉!将此行打开后用 nasm Boot.asm -o Boot.com 做成一个.COM文件易于调试
+
+%ifdef	_BOOT_DEBUG_
+	org  0100h				; 调试状态, 做成 .COM 文件, 可调试
 %else
-    org  07c00h             ; BIOS 将把 Boot Sector 加载到 0:7C00 处
+	org  07c00h				; Boot 状态, Bios 将把 Boot Sector 加载到 0:7C00 处并开始执行
 %endif
-    jmp LABEL_BEGIN
-[SECTION .gdt]
-; GDT
-;                           段基址,       段界限, 属性
-LABEL_GDT:          Descriptor 0,              0, 0                      ; 空描述符
-LABEL_DESC_NORMAL:  Descriptor 0,         0ffffh, DA_DRW                 ; Normal 描述符
-LABEL_DESC_FLAT_C:  Descriptor 0,        0fffffh, DA_CR|DA_32|DA_LIMIT_4K; 0~4G
-LABEL_DESC_FLAT_RW: Descriptor 0,        0fffffh, DA_DRW|DA_LIMIT_4K     ; 0~4G
-LABEL_DESC_CODE32:  Descriptor 0, SegCode32Len-1, DA_CR|DA_32            ; 非一致代码段, 32
-LABEL_DESC_CODE16:  Descriptor 0,         0ffffh, DA_C                   ; 非一致代码段, 16
-LABEL_DESC_DATA:    Descriptor 0,      DataLen-1, DA_DRW                 ; Data
-LABEL_DESC_STACK:   Descriptor 0,     TopOfStack, DA_DRWA|DA_32          ; Stack, 32 位
-LABEL_DESC_VIDEO:   Descriptor 0B8000h,   0ffffh, DA_DRW                 ; 显存首地址
-; GDT 结束
 
-GdtLen		equ	$ - LABEL_GDT	; GDT长度
-GdtPtr		dw	GdtLen - 1	; GDT界限
-		dd	0		; GDT基地址
+;================================================================================================
+%ifdef	_BOOT_DEBUG_
+BaseOfStack		equ	0100h	; 调试状态下堆栈基地址 (栈底, 从这个位置向低地址生长)
+%else
+BaseOfStack		equ	07c00h	; Boot状态下堆栈基地址 (栈底, 从这个位置向低地址生长)
+%endif
 
-; GDT 选择子
-SelectorNormal		equ	LABEL_DESC_NORMAL	- LABEL_GDT
-SelectorFlatC		equ	LABEL_DESC_FLAT_C	- LABEL_GDT
-SelectorFlatRW		equ	LABEL_DESC_FLAT_RW	- LABEL_GDT
-SelectorCode32		equ	LABEL_DESC_CODE32	- LABEL_GDT
-SelectorCode16		equ	LABEL_DESC_CODE16	- LABEL_GDT
-SelectorData		equ	LABEL_DESC_DATA		- LABEL_GDT
-SelectorStack		equ	LABEL_DESC_STACK	- LABEL_GDT
-SelectorVideo		equ	LABEL_DESC_VIDEO	- LABEL_GDT
-; END of [SECTION .gdt]
+%include	"load.inc"
+;================================================================================================
 
-[SECTION .data1]	 ; 数据段
-ALIGN	32
-[BITS	32]
-LABEL_DATA:
-; 实模式下使用这些符号
-; 字符串
-_szPMMessage:			db	"In Protect Mode now. ^-^", 0Ah, 0Ah, 0	; 进入保护模式后显示此字符串
-_szMemChkTitle:			db	"BaseAddrL BaseAddrH LengthLow LengthHigh   Type", 0Ah, 0	; 进入保护模式后显示此字符串
-_szRAMSize			db	"RAM size:", 0
-_szReturn			db	0Ah, 0
-; 变量
-_wSPValueInRealMode		dw	0
-_dwMCRNumber:			dd	0	; Memory Check Result
-_dwDispPos:			dd	(80 * 6 + 0) * 2	; 屏幕第 6 行, 第 0 列。
-_dwMemSize:			dd	0
-_ARDStruct:			; Address Range Descriptor Structure
-	_dwBaseAddrLow:		dd	0
-	_dwBaseAddrHigh:	dd	0
-	_dwLengthLow:		dd	0
-	_dwLengthHigh:		dd	0
-	_dwType:		dd	0
-_PageTableNumber		dd	0
+	jmp short LABEL_START	; Start to boot.
+	nop						; 这个 nop 不可省略
 
-_MemChkBuf:	times	256	db	0
+; 下面是 FAT12 磁盘的头, 之所以包含它是因为下面用到了磁盘的一些信息
+%include	"fat12hdr.inc"
 
-; 保护模式下使用这些符号
-szPMMessage		equ	_szPMMessage	- $$
-szMemChkTitle		equ	_szMemChkTitle	- $$
-szRAMSize		equ	_szRAMSize	- $$
-szReturn		equ	_szReturn	- $$
-dwDispPos		equ	_dwDispPos	- $$
-dwMemSize		equ	_dwMemSize	- $$
-dwMCRNumber		equ	_dwMCRNumber	- $$
-ARDStruct		equ	_ARDStruct	- $$
-	dwBaseAddrLow	equ	_dwBaseAddrLow	- $$
-	dwBaseAddrHigh	equ	_dwBaseAddrHigh	- $$
-	dwLengthLow	equ	_dwLengthLow	- $$
-	dwLengthHigh	equ	_dwLengthHigh	- $$
-	dwType		equ	_dwType		- $$
-MemChkBuf		equ	_MemChkBuf	- $$
-PageTableNumber		equ	_PageTableNumber- $$
-
-DataLen			equ	$ - LABEL_DATA
-; END of [SECTION .data1]
-
-
-; 全局堆栈段
-[SECTION .gs]
-ALIGN	32
-[BITS	32]
-LABEL_STACK:
-	times 512 db 0
-
-TopOfStack	equ	$ - LABEL_STACK - 1
-
-; END of [SECTION .gs]
-
-
-[SECTION .s16]
-[BITS	16]
-LABEL_BEGIN:
+LABEL_START:	
 	mov	ax, cs
 	mov	ds, ax
 	mov	es, ax
 	mov	ss, ax
-	mov	sp, 0100h
+	mov	sp, BaseOfStack
 
-	mov	[LABEL_GO_BACK_TO_REAL+3], ax
-	mov	[_wSPValueInRealMode], sp
+	; 清屏
+	mov	ax, 0600h		; AH = 6,  AL = 0h
+	mov	bx, 0700h		; 黑底白字(BL = 07h)
+	mov	cx, 0			; 左上角: (0, 0)
+	mov	dx, 0184fh		; 右下角: (80, 50)
+	int	10h				; int 10h
 
-	; 得到内存数
-	mov	ebx, 0
-	mov	di, _MemChkBuf
-.loop:
-	mov	eax, 0E820h
-	mov	ecx, 20
-	mov	edx, 0534D4150h
-	int	15h
-	jc	LABEL_MEM_CHK_FAIL
-	add	di, 20
-	inc	dword [_dwMCRNumber]
-	cmp	ebx, 0
-	jne	.loop
-	jmp	LABEL_MEM_CHK_OK
-LABEL_MEM_CHK_FAIL:
-	mov	dword [_dwMCRNumber], 0
-LABEL_MEM_CHK_OK:
+	mov	dh, 0			; "Booting  "
+	call	DispStr		; 显示字符串
+	
+	xor	ah, ah			; ┓
+	xor	dl, dl			; ┣ 软驱复位
+	int	13h				; ┛
+	
+; 下面在 A 盘的根目录寻找 LOADER.BIN
+	mov	word [wSectorNo], SectorNoOfRootDirectory
 
-	; 初始化 16 位代码段描述符
-	mov	ax, cs
-	movzx	eax, ax
-	shl	eax, 4
-	add	eax, LABEL_SEG_CODE16
-	mov	word [LABEL_DESC_CODE16 + 2], ax
-	shr	eax, 16
-	mov	byte [LABEL_DESC_CODE16 + 4], al
-	mov	byte [LABEL_DESC_CODE16 + 7], ah
+LABEL_SEARCH_IN_ROOT_DIR_BEGIN:
+	cmp	word [wRootDirSizeForLoop], 0	; ┓ 判断根目录区是不是已经读完
+	jz	LABEL_NO_LOADERBIN				; ┣ 如果读完表示没有找到 LOADER.BIN
+	dec	word [wRootDirSizeForLoop]		; ┛
+	mov	ax, BaseOfLoader
+	mov	es, ax							; es <- BaseOfLoader
+	mov	bx, OffsetOfLoader				; bx <- OffsetOfLoader	于是, es:bx = BaseOfLoader:OffsetOfLoader
+	mov	ax, [wSectorNo]					; ax <- Root Directory	中的某 Sector 号
+	mov	cl, 1
+	call	ReadSector
 
-	; 初始化 32 位代码段描述符
-	xor	eax, eax
-	mov	ax, cs
-	shl	eax, 4
-	add	eax, LABEL_SEG_CODE32
-	mov	word [LABEL_DESC_CODE32 + 2], ax
-	shr	eax, 16
-	mov	byte [LABEL_DESC_CODE32 + 4], al
-	mov	byte [LABEL_DESC_CODE32 + 7], ah
+	mov	si, LoaderFileName				; ds:si -> "LOADER  BIN"
+	mov	di, OffsetOfLoader				; es:di -> BaseOfLoader:0100 = BaseOfLoader*10h+100
+	cld
+	mov	dx, 10h
 
-	; 初始化数据段描述符
-	xor	eax, eax
-	mov	ax, ds
-	shl	eax, 4
-	add	eax, LABEL_DATA
-	mov	word [LABEL_DESC_DATA + 2], ax
-	shr	eax, 16
-	mov	byte [LABEL_DESC_DATA + 4], al
-	mov	byte [LABEL_DESC_DATA + 7], ah
+LABEL_SEARCH_FOR_LOADERBIN:
+	cmp	dx, 0								; ┓ 循环次数控制,
+	jz	LABEL_GOTO_NEXT_SECTOR_IN_ROOT_DIR	; ┣ 如果已经读完了一个 Sector,
+	dec	dx									; ┛ 就跳到下一个 Sector
+	mov	cx, 11
 
-	; 初始化堆栈段描述符
-	xor	eax, eax
-	mov	ax, ds
-	shl	eax, 4
-	add	eax, LABEL_STACK
-	mov	word [LABEL_DESC_STACK + 2], ax
-	shr	eax, 16
-	mov	byte [LABEL_DESC_STACK + 4], al
-	mov	byte [LABEL_DESC_STACK + 7], ah
+LABEL_CMP_FILENAME:
+	cmp	cx, 0
+	jz	LABEL_FILENAME_FOUND	; 如果比较了 11 个字符都相等, 表示找到 DirectoryEntry
+	dec	cx
+	lodsb						; ds:si -> al
+	cmp	al, byte [es:di]
+	jz	LABEL_GO_ON
+	jmp	LABEL_DIFFERENT			; 只要发现不一样的字符就表明本 DirectoryEntry 不是我们要找的 LOADER.BIN
 
-	; 为加载 GDTR 作准备
-	xor	eax, eax
-	mov	ax, ds
-	shl	eax, 4
-	add	eax, LABEL_GDT		; eax <- gdt 基地址
-	mov	dword [GdtPtr + 2], eax	; [GdtPtr + 2] <- gdt 基地址
+LABEL_GO_ON:
+	inc	di
+	jmp	LABEL_CMP_FILENAME		;	继续循环
 
-	; 加载 GDTR
-	lgdt	[GdtPtr]
+LABEL_DIFFERENT:
+	and	di, 0FFE0h					; else ┳ di &= E0 为了让它指向本条目开头
+	add	di, 20h						;      ┃
+	mov	si, LoaderFileName			;      ┣ di += 20h  下一个目录条目
+	jmp	LABEL_SEARCH_FOR_LOADERBIN	;      ┛
 
-	; 关中断
-	cli
+LABEL_GOTO_NEXT_SECTOR_IN_ROOT_DIR:
+	add	word [wSectorNo], 1
+	jmp	LABEL_SEARCH_IN_ROOT_DIR_BEGIN
 
-	; 打开地址线A20
-	in	al, 92h
-	or	al, 00000010b
-	out	92h, al
+LABEL_NO_LOADERBIN:
+	mov	dh, 2			; "No LOADER."
+	call	DispStr		; 显示字符串
+%ifdef	_BOOT_DEBUG_
+	mov	ax, 4c00h		; ┳ 没有找到 LOADER.BIN, 回到 DOS
+	int	21h				; ┛
+%else
+	jmp	$				; 没有找到 LOADER.BIN, 死循环在这里
+%endif
 
-	; 准备切换到保护模式
-	mov	eax, cr0
-	or	eax, 1
-	mov	cr0, eax
+LABEL_FILENAME_FOUND:			; 找到 LOADER.BIN 后便来到这里继续
+	mov	ax, RootDirSectors
+	and	di, 0FFE0h				; di -> 当前条目的开始
+	add	di, 01Ah				; di -> 首 Sector
+	mov	cx, word [es:di]
+	push	cx					; 保存此 Sector 在 FAT 中的序号
+	add	cx, ax
+	add	cx, DeltaSectorNo		; 这句完成时 cl 里面变成 LOADER.BIN 的起始扇区号 (从 0 开始数的序号)
+	mov	ax, BaseOfLoader
+	mov	es, ax					; es <- BaseOfLoader
+	mov	bx, OffsetOfLoader		; bx <- OffsetOfLoader	于是, es:bx = BaseOfLoader:OffsetOfLoader = BaseOfLoader * 10h + OffsetOfLoader
+	mov	ax, cx					; ax <- Sector 号
 
-	; 真正进入保护模式
-	jmp	dword SelectorCode32:0	; 执行这一句会把 SelectorCode32 装入 cs, 并跳转到 Code32Selector:0  处
+LABEL_GOON_LOADING_FILE:
+	push	ax					; ┓
+	push	bx					; ┃
+	mov	ah, 0Eh					; ┃ 每读一个扇区就在 "Booting  " 后面打一个点, 形成这样的效果:
+	mov	al, '.'					; ┣
+	mov	bl, 0Fh					; ┃ Booting ......
+	int	10h						; ┃
+	pop	bx						; ┃
+	pop	ax						; ┛
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	mov	cl, 1
+	call	ReadSector
+	pop	ax						; 取出此 Sector 在 FAT 中的序号
+	call	GetFATEntry
+	cmp	ax, 0FFFh
+	jz	LABEL_FILE_LOADED
+	push	ax					; 保存 Sector 在 FAT 中的序号
+	mov	dx, RootDirSectors
+	add	ax, dx
+	add	ax, DeltaSectorNo
+	add	bx, [BPB_BytsPerSec]
+	jmp	LABEL_GOON_LOADING_FILE
 
-LABEL_REAL_ENTRY:		; 从保护模式跳回到实模式就到了这里
-	mov	ax, cs
-	mov	ds, ax
-	mov	es, ax
-	mov	ss, ax
+LABEL_FILE_LOADED:
 
-	mov	sp, [_wSPValueInRealMode]
+	mov	dh, 1			; "Ready."
+	call	DispStr		; 显示字符串
 
-	in	al, 92h		; ┓
-	and	al, 11111101b	; ┣ 关闭 A20 地址线
-	out	92h, al		; ┛
+; *****************************************************************************************************
+	jmp	BaseOfLoader:OffsetOfLoader		; ┳ 这一句正式跳转到已加载到内存中的 LOADER.BIN 的开始处
+										; ┃ 开始执行 LOADER.BIN 的代码
+										; ┛ Boot Sector 的使命到此结束
+; *****************************************************************************************************
 
-	sti			; 开中断
+;============================================================================
+;变量
+;----------------------------------------------------------------------------
+wRootDirSizeForLoop	dw	RootDirSectors	; Root Directory 占用的扇区数, 在循环中会递减至零.
+wSectorNo		dw	0					; 要读取的扇区号
+bOdd			db	0					; 奇数还是偶数
 
-	mov	ax, 4c00h	; ┓
-	int	21h		; ┛回到 DOS
-; END of [SECTION .s16]
-
-
-[SECTION .s32]; 32 位代码段. 由实模式跳入.
-[BITS	32]
-
-LABEL_SEG_CODE32:
-	mov	ax, SelectorData
-	mov	ds, ax			; 数据段选择子
-	mov	es, ax
-	mov	ax, SelectorVideo
-	mov	gs, ax			; 视频段选择子
-
-	mov	ax, SelectorStack
-	mov	ss, ax			; 堆栈段选择子
-
-	mov	esp, TopOfStack
+;============================================================================
+;字符串
+;----------------------------------------------------------------------------
+LoaderFileName		db	"LOADER  BIN", 0	; LOADER.BIN 之文件名
+; 为简化代码, 下面每个字符串的长度均为 MessageLength
+MessageLength		equ	9
+BootMessage:		db	"Booting  "			; 9字节, 不够则用空格补齐. 序号 0
+Message1		db	"Ready.   "				; 9字节, 不够则用空格补齐. 序号 1
+Message2		db	"No LOADER"				; 9字节, 不够则用空格补齐. 序号 2
+;============================================================================
 
 
-	; 下面显示一个字符串
-	push	szPMMessage
-	call	DispStr
-	add	esp, 4
+;----------------------------------------------------------------------------
+; 函数名: DispStr
+;----------------------------------------------------------------------------
+; 作用:
+;	显示一个字符串, 函数开始时 dh 中应该是字符串序号(0-based)
+DispStr:
+	mov	ax, MessageLength
+	mul	dh
+	add	ax, BootMessage
+	mov	bp, ax				; ┓
+	mov	ax, ds				; ┣ ES:BP = 串地址
+	mov	es, ax				; ┛
+	mov	cx, MessageLength	; CX = 串长度
+	mov	ax, 01301h			; AH = 13,  AL = 01h
+	mov	bx, 0007h			; 页号为0(BH = 0) 黑底白字(BL = 07h)
+	mov	dl, 0
+	int	10h					; int 10h
+	ret
+;----------------------------------------------------------------------------
 
-	push	szMemChkTitle
-	call	DispStr
-	add	esp, 4
 
-	call	DispMemSize		; 显示内存信息
 
-	call	PagingDemo		; 演示改变页目录的效果
+;----------------------------------------------------------------------------
+; 函数名: ReadSector
+;----------------------------------------------------------------------------
+; 作用:
+;	从第 ax 个 Sector 开始, 将 cl 个 Sector 读入 es:bx 中
 
-	; 到此停止
-	jmp	SelectorCode16:0
+ReadSector:
+	; -----------------------------------------------------------------------
+	; 由扇区号求扇区在磁盘中的位置 (扇区号 -> 柱面号, 起始扇区, 磁头号)
+	; -----------------------------------------------------------------------
+	; 设扇区号为 x
+	;                          ┏ 柱面号 = y >> 1
+	;       x           ┏ 商 y ┫
+	; -------------- => ┫      ┗ 磁头号 = y & 1
+	;  每磁道扇区数       ┃
+	;                   ┗ 余 z => 起始扇区号 = z + 1
+	push	bp
+	mov	bp, sp
+	sub	esp, 2				; 开辟出两个字节的堆栈区域保存要读的扇区数: byte [bp-2]
 
-; 启动分页机制 --------------------------------------------------------------
-SetupPaging:
-	; 根据内存大小计算应初始化多少PDE以及多少页表
-	xor	edx, edx
-	mov	eax, [dwMemSize]
-	mov	ebx, 400000h	; 400000h = 4M = 4096 * 1024, 一个页表对应的内存大小
-	div	ebx
-	mov	ecx, eax	; 此时 ecx 为页表的个数，也即 PDE 应该的个数
-	test	edx, edx
-	jz	.no_remainder
-	inc	ecx		; 如果余数不为 0 就需增加一个页表
-.no_remainder:
-	mov	[PageTableNumber], ecx	; 暂存页表个数
+	mov	byte [bp-2], cl
+	push	bx				; 保存 bx
+	mov	bl, [BPB_SecPerTrk]	; bl: 除数
+	div	bl					; y 在 al 中, z 在 ah 中
+	inc	ah					; z ++
+	mov	cl, ah				; cl <- 起始扇区号
+	mov	dh, al				; dh <- y
+	shr	al, 1				; y >> 1 (y/BPB_NumHeads，即 BPB_NumHeads=2)
+	mov	ch, al				; ch <- 柱面号
+	and	dh, 1				; dh & 1 = 磁头号
+	pop	bx					; 恢复 bx
+	; 至此得到柱面号, 起始扇区, 磁头号
+	mov	dl, [BS_DrvNum]		; 驱动器号 (0 表示 A 盘)
 
-	; 为简化处理, 所有线性地址对应相等的物理地址. 并且不考虑内存空洞.
+.GoOnReading:
+	mov	ah, 2				; 读
+	mov	al, byte [bp-2]		; 读 al 个扇区
+	int	13h
+	jc	.GoOnReading		; 如果读取错误 CF 会被置为 1, 这时就不停地读, 直到正确为止
 
-	; 首先初始化页目录
-	mov	ax, SelectorFlatRW
-	mov	es, ax
-	mov	edi, PageDirBase0	; 此段首地址为 PageDirBase0
-	xor	eax, eax
-	mov	eax, PageTblBase0 | PG_P  | PG_USU | PG_RWW
-.1:
-	stosd
-	add	eax, 4096		; 为了简化, 所有页表在内存中是连续的.
-	loop	.1
-
-	; 再初始化所有页表
-	mov	eax, [PageTableNumber]	; 页表个数
-	mov	ebx, 1024		; 每个页表 1024 个 PTE
-	mul	ebx
-	mov	ecx, eax		; PTE个数 = 页表个数 * 1024
-	mov	edi, PageTblBase0	; 此段首地址为 PageTblBase0
-	xor	eax, eax
-	mov	eax, PG_P  | PG_USU | PG_RWW
-.2:
-	stosd
-	add	eax, 4096		; 每一页指向 4K 的空间
-	loop	.2
-
-	mov	eax, PageDirBase0
-	mov	cr3, eax
-	mov	eax, cr0
-	or	eax, 80000000h
-	mov	cr0, eax
-	jmp	short .3
-.3:
-	nop
+	add	esp, 2
+	pop	bp
 
 	ret
-; 分页机制启动完毕 ----------------------------------------------------------
+;----------------------------------------------------------------------------
 
 
-; 测试分页机制 --------------------------------------------------------------
-PagingDemo:
-	mov	ax, cs
-	mov	ds, ax
-	mov	ax, SelectorFlatRW
-	mov	es, ax
+;----------------------------------------------------------------------------
+; 函数名: GetFATEntry
+;----------------------------------------------------------------------------
+; 作用:
+;	找到序号为 ax 的 Sector 在 FAT 中的条目, 结果放在 ax 中
+;	需要注意的是, 中间需要读 FAT 的扇区到 es:bx 处, 所以函数一开始保存了 es 和 bx
+GetFATEntry:
+	push	es
+	push	bx
+	push	ax
+	mov	ax, BaseOfLoader	; ┓
+	sub	ax, 0100h			; ┣ 在 BaseOfLoader 后面留出 4K 空间用于存放 FAT
+	mov	es, ax				; ┛
+	pop	ax
+	mov	byte [bOdd], 0
+	mov	bx, 3
+	mul	bx					; dx:ax = ax * 3
+	mov	bx, 2
+	div	bx					; dx:ax / 2  ==>  ax <- 商, dx <- 余数
+	cmp	dx, 0
+	jz	LABEL_EVEN
+	mov	byte [bOdd], 1
 
-	push	LenFoo
-	push	OffsetFoo
-	push	ProcFoo
-	call	MemCpy
-	add	esp, 12
+LABEL_EVEN:					;偶数
+	xor	dx, dx				; 现在 ax 中是 FATEntry 在 FAT 中的偏移量. 下面来计算 FATEntry 在哪个扇区中(FAT占用不止一个扇区)
+	mov	bx, [BPB_BytsPerSec]
+	div	bx					; ┳ dx:ax / BPB_BytsPerSec  ==>	ax <- 商   (FATEntry 所在的扇区相对于 FAT 来说的扇区号)
+							; ┛								dx <- 余数 (FATEntry 在扇区内的偏移)。
+	push	dx
+	mov	bx, 0				; bx <- 0	于是, es:bx = (BaseOfLoader - 100):00 = (BaseOfLoader - 100) * 10h
+	add	ax, SectorNoOfFAT1	; 此句执行之后的 ax 就是 FATEntry 所在的扇区号
+	mov	cl, 2
+	call	ReadSector		; 读取 FATEntry 所在的扇区, 一次读两个, 避免在边界发生错误, 因为一个 FATEntry 可能跨越两个扇区
+	pop	dx
+	add	bx, dx
+	mov	ax, [es:bx]
+	cmp	byte [bOdd], 1
+	jnz	LABEL_EVEN_2
+	shr	ax, 4
 
-	push	LenBar
-	push	OffsetBar
-	push	ProcBar
-	call	MemCpy
-	add	esp, 12
+LABEL_EVEN_2:
+	and	ax, 0FFFh
 
-	push	LenPagingDemoAll
-	push	OffsetPagingDemoProc
-	push	ProcPagingDemo
-	call	MemCpy
-	add	esp, 12
+LABEL_GET_FAT_ENRY_OK:
 
-	mov	ax, SelectorData
-	mov	ds, ax			; 数据段选择子
-	mov	es, ax
-
-	call	SetupPaging		; 启动分页
-
-	call	SelectorFlatC:ProcPagingDemo
-	call	PSwitch			; 切换页目录，改变地址映射关系
-	call	SelectorFlatC:ProcPagingDemo
-
+	pop	bx
+	pop	es
 	ret
-; ---------------------------------------------------------------------------
+;----------------------------------------------------------------------------
 
-
-; 切换页表 ------------------------------------------------------------------
-PSwitch:
-	; 初始化页目录
-	mov	ax, SelectorFlatRW
-	mov	es, ax
-	mov	edi, PageDirBase1	; 此段首地址为 PageDirBase1
-	xor	eax, eax
-	mov	eax, PageTblBase1 | PG_P  | PG_USU | PG_RWW
-	mov	ecx, [PageTableNumber]
-.1:
-	stosd
-	add	eax, 4096		; 为了简化, 所有页表在内存中是连续的.
-	loop	.1
-
-	; 再初始化所有页表
-	mov	eax, [PageTableNumber]	; 页表个数
-	mov	ebx, 1024		; 每个页表 1024 个 PTE
-	mul	ebx
-	mov	ecx, eax		; PTE个数 = 页表个数 * 1024
-	mov	edi, PageTblBase1	; 此段首地址为 PageTblBase1
-	xor	eax, eax
-	mov	eax, PG_P  | PG_USU | PG_RWW
-.2:
-	stosd
-	add	eax, 4096		; 每一页指向 4K 的空间
-	loop	.2
-
-	; 在此假设内存是大于 8M 的
-	mov	eax, LinearAddrDemo
-	shr	eax, 22
-	mov	ebx, 4096
-	mul	ebx
-	mov	ecx, eax
-	mov	eax, LinearAddrDemo
-	shr	eax, 12
-	and	eax, 03FFh	; 1111111111b (10 bits)
-	mov	ebx, 4
-	mul	ebx
-	add	eax, ecx
-	add	eax, PageTblBase1
-	mov	dword [es:eax], ProcBar | PG_P | PG_USU | PG_RWW
-
-	mov	eax, PageDirBase1
-	mov	cr3, eax
-	jmp	short .3
-.3:
-	nop
-
-	ret
-; ---------------------------------------------------------------------------
-
-
-
-PagingDemoProc:
-OffsetPagingDemoProc	equ	PagingDemoProc - $$
-	mov	eax, LinearAddrDemo
-	call	eax
-	retf
-LenPagingDemoAll	equ	$ - PagingDemoProc
-
-foo:
-OffsetFoo		equ	foo - $$
-	mov	ah, 0Ch			; 0000: 黑底    1100: 红字
-	mov	al, 'F'
-	mov	[gs:((80 * 17 + 0) * 2)], ax	; 屏幕第 17 行, 第 0 列。
-	mov	al, 'o'
-	mov	[gs:((80 * 17 + 1) * 2)], ax	; 屏幕第 17 行, 第 1 列。
-	mov	[gs:((80 * 17 + 2) * 2)], ax	; 屏幕第 17 行, 第 2 列。
-	ret
-LenFoo			equ	$ - foo
-
-bar:
-OffsetBar		equ	bar - $$
-	mov	ah, 0Ch			; 0000: 黑底    1100: 红字
-	mov	al, 'B'
-	mov	[gs:((80 * 18 + 0) * 2)], ax	; 屏幕第 18 行, 第 0 列。
-	mov	al, 'a'
-	mov	[gs:((80 * 18 + 1) * 2)], ax	; 屏幕第 18 行, 第 1 列。
-	mov	al, 'r'
-	mov	[gs:((80 * 18 + 2) * 2)], ax	; 屏幕第 18 行, 第 2 列。
-	ret
-LenBar			equ	$ - bar
-
-
-; 显示内存信息 --------------------------------------------------------------
-DispMemSize:
-	push	esi
-	push	edi
-	push	ecx
-
-	mov	esi, MemChkBuf
-	mov	ecx, [dwMCRNumber]	;for(int i=0;i<[MCRNumber];i++) // 每次得到一个ARDS(Address Range Descriptor Structure)结构
-.loop:					;{
-	mov	edx, 5			;	for(int j=0;j<5;j++)	// 每次得到一个ARDS中的成员，共5个成员
-	mov	edi, ARDStruct		;	{			// 依次显示：BaseAddrLow，BaseAddrHigh，LengthLow，LengthHigh，Type
-.1:					;
-	push	dword [esi]		;
-	call	DispInt			;		DispInt(MemChkBuf[j*4]); // 显示一个成员
-	pop	eax			;
-	stosd				;		ARDStruct[j*4] = MemChkBuf[j*4];
-	add	esi, 4			;
-	dec	edx			;
-	cmp	edx, 0			;
-	jnz	.1			;	}
-	call	DispReturn		;	printf("\n");
-	cmp	dword [dwType], 1	;	if(Type == AddressRangeMemory) // AddressRangeMemory : 1, AddressRangeReserved : 2
-	jne	.2			;	{
-	mov	eax, [dwBaseAddrLow]	;
-	add	eax, [dwLengthLow]	;
-	cmp	eax, [dwMemSize]	;		if(BaseAddrLow + LengthLow > MemSize)
-	jb	.2			;
-	mov	[dwMemSize], eax	;			MemSize = BaseAddrLow + LengthLow;
-.2:					;	}
-	loop	.loop			;}
-					;
-	call	DispReturn		;printf("\n");
-	push	szRAMSize		;
-	call	DispStr			;printf("RAM size:");
-	add	esp, 4			;
-					;
-	push	dword [dwMemSize]	;
-	call	DispInt			;DispInt(MemSize);
-	add	esp, 4			;
-
-	pop	ecx
-	pop	edi
-	pop	esi
-	ret
-; ---------------------------------------------------------------------------
-
-%include	"include/lib.inc"	; 库函数
-
-SegCode32Len	equ	$ - LABEL_SEG_CODE32
-; END of [SECTION .s32]
-
-
-; 16 位代码段. 由 32 位代码段跳入, 跳出后到实模式
-[SECTION .s16code]
-ALIGN	32
-[BITS	16]
-LABEL_SEG_CODE16:
-	; 跳回实模式:
-	mov	ax, SelectorNormal
-	mov	ds, ax
-	mov	es, ax
-	mov	fs, ax
-	mov	gs, ax
-	mov	ss, ax
-
-	mov	eax, cr0
-	and     eax, 7FFFFFFEh          ; PE=0, PG=0
-	mov	cr0, eax
-
-LABEL_GO_BACK_TO_REAL:
-	jmp	0:LABEL_REAL_ENTRY	; 段地址会在程序开始处被设置成正确的值
-
-Code16Len	equ	$ - LABEL_SEG_CODE16
-
-; END of [SECTION .s16code]
+times 	510-($-$$)	db	0	; 填充剩下的空间，使生成的二进制代码恰好为512字节
+dw 	0xaa55					; 结束标志
