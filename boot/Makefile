@@ -1,37 +1,29 @@
 ASM			= nasm
-ASMBFLAGS	= 
+ASMBFLAGS	= -I include/
 DASMFLAGS	= -D
 DESTDIR		= ../build
-FDFILE		= boot.img
-FDDEBUG		= debug.img
 BINFILE     = boot.bin
 COMFILE     = boot.com
+LOADERFILE 	= loader.bin
 
-FILES = $(DESTDIR)/$(FDFILE) $(DESTDIR)/$(FDDEBUG) $(DESTDIR)/$(COMFILE) $(DESTDIR)/$(BINFILE)
+FILES = $(DESTDIR)/$(COMFILE) $(DESTDIR)/$(BINFILE) $(DESTDIR)/$(LOADERFILE)
 
-.PHONY : all clean buildimg debugcom debugimg
+.PHONY : all clean bootbin bootcom loader
 
-nop: buildimg
-
-all: buildimg debugimg
+nop: bootbin loader
 
 clean:
-	rm -f $(FILES)
+	$(RM) $(FILES)
 
-buildimg: $(DESTDIR)/$(BINFILE)
-	dd if=$(DESTDIR)/$(BINFILE) of=$(DESTDIR)/$(FDFILE) bs=512 count=1 conv=notrunc
+bootbin: $(DESTDIR)/$(BINFILE) $(DESTDIR)/$(LOADERFILE)
 
-debugcom: $(DESTDIR)/$(COMFILE)
+bootcom: $(DESTDIR)/$(COMFILE) $(DESTDIR)/$(LOADERFILE)
 
-debugimg: $(DESTDIR)/$(COMFILE)
-ifeq (,$(wildcard $(FDDEBUG)))
-	dd if=/dev/zero of=$(DESTDIR)/$(FDDEBUG) count=1440 bs=1k
-	/sbin/mkfs.msdos $(DESTDIR)/$(FDDEBUG)
-endif
-	mcopy -D o -i $(DESTDIR)/$(FDDEBUG) $(DESTDIR)/$(COMFILE) ::/
-
-$(DESTDIR)/$(BINFILE): boot.asm
+$(DESTDIR)/$(BINFILE): boot.asm include/load.inc include/fat12hdr.inc
 	$(ASM) $(ASMBFLAGS) -o $@ $<
 
-$(DESTDIR)/$(COMFILE): boot.asm
+$(DESTDIR)/$(COMFILE): boot.asm include/load.inc include/fat12hdr.inc
 	$(ASM) $(ASMBFLAGS) -DBOOT_DEBUG -o $@ $<
+
+$(DESTDIR)/$(LOADERFILE): loader.asm include/load.inc include/fat12hdr.inc include/pm.inc
+	$(ASM) $(ASMBFLAGS) -o $@ $<

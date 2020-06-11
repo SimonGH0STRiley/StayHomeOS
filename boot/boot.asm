@@ -6,17 +6,15 @@
 ; ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 
-; DEBUG ONLY
-;%define	_BOOT_DEBUG_	; 做 Boot Sector 时一定将此行注释掉!将此行打开后用 nasm Boot.asm -o Boot.com 做成一个.COM文件易于调试
-
-%ifdef	_BOOT_DEBUG_
+; 这个开关由 make 的参数决定
+%ifdef	BOOT_DEBUG
 	org  0100h				; 调试状态, 做成 .COM 文件, 可调试
 %else
 	org  07c00h				; Boot 状态, Bios 将把 Boot Sector 加载到 0:7C00 处并开始执行
 %endif
 
 ;================================================================================================
-%ifdef	_BOOT_DEBUG_
+%ifdef	BOOT_DEBUG
 BaseOfStack		equ	0100h	; 调试状态下堆栈基地址 (栈底, 从这个位置向低地址生长)
 %else
 BaseOfStack		equ	07c00h	; Boot状态下堆栈基地址 (栈底, 从这个位置向低地址生长)
@@ -212,7 +210,7 @@ ReadSector:
 	;                          ┏ 柱面号 = y >> 1
 	;       x           ┏ 商 y ┫
 	; -------------- => ┫      ┗ 磁头号 = y & 1
-	;  每磁道扇区数       ┃
+	;  每磁道扇区数     ┃
 	;                   ┗ 余 z => 起始扇区号 = z + 1
 	push	bp
 	mov	bp, sp
