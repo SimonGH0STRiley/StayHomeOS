@@ -1,8 +1,4 @@
 
-/*++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-                            main.c
-++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++*/
-
 #include "type.h"
 #include "stdio.h"
 #include "const.h"
@@ -36,8 +32,8 @@ PUBLIC int kernel_main()
 	struct proc * p = proc_table;
 
 	char * stk = task_stack + STACK_SIZE_TOTAL;
-    //将暂时没用到的proc_table[]表项的p_flags成员赋值为FREE_SLOT，帮助MM判断此处是否为空
-	for (i = 0; i < NR_TASKS + NR_PROCS; i++,p++,t++) {
+   for (i = 0; i < NR_TASKS + NR_PROCS; i++,p++,t++) {
+        //将暂时没用到的proc_table[]表项的p_flags成员赋值为FREE_SLOT，帮助MM判断此处是否为空
 		if (i >= NR_TASKS + NR_NATIVE_PROCS) {
 			p->p_flags = FREE_SLOT;
 			continue;
@@ -48,14 +44,14 @@ PUBLIC int kernel_main()
                         priv	= PRIVILEGE_TASK;
                         rpl     = RPL_TASK;
                         eflags  = 0x1202;/* IF=1, IOPL=1, bit 2 is always 1 */
-			prio    = 15;
+			            prio    = 15;
                 }
                 else {                  /* USER PROC */
                         t	= user_proc_table + (i - NR_TASKS);
                         priv	= PRIVILEGE_USER;
                         rpl     = RPL_USER;
                         eflags  = 0x202;	/* IF=1, bit 2 is always 1 */
-			prio    = 5;
+			            prio    = 5;
                 }
 
 		strcpy(p->name, t->name);	/* name of the process */
@@ -65,7 +61,7 @@ PUBLIC int kernel_main()
 			p->ldts[INDEX_LDT_C]  = gdt[SELECTOR_KERNEL_CS >> 3];
 			p->ldts[INDEX_LDT_RW] = gdt[SELECTOR_KERNEL_DS >> 3];
 
-			/* change the DPLs */
+			// 改变DPL
 			p->ldts[INDEX_LDT_C].attr1  = DA_C   | priv << 5;
 			p->ldts[INDEX_LDT_RW].attr1 = DA_DRW | priv << 5;
 		}
@@ -74,20 +70,13 @@ PUBLIC int kernel_main()
 			unsigned int k_limit;
 			int ret = get_kernel_map(&k_base, &k_limit);
 			assert(ret == 0);
+			//注意INIT进程的入口点之前的字节是无用的
 			init_desc(&p->ldts[INDEX_LDT_C],
-				  0, /* bytes before the entry point
-				      * are useless (wasted) for the
-				      * INIT process, doesn't matter
-				      */
-				  (k_base + k_limit) >> LIMIT_4K_SHIFT,
+				  0, (k_base + k_limit) >> LIMIT_4K_SHIFT,
 				  DA_32 | DA_LIMIT_4K | DA_C | priv << 5);
 
 			init_desc(&p->ldts[INDEX_LDT_RW],
-				  0, /* bytes before the entry point
-				      * are useless (wasted) for the
-				      * INIT process, doesn't matter
-				      */
-				  (k_base + k_limit) >> LIMIT_4K_SHIFT,
+				  0, (k_base + k_limit) >> LIMIT_4K_SHIFT,
 				  DA_32 | DA_LIMIT_4K | DA_DRW | priv << 5);
 		}
 
@@ -144,10 +133,8 @@ PUBLIC int get_ticks()
 }
 
 
-/**
- * @struct posix_tar_header
- * Borrowed from GNU `tar'
- */
+
+ //借鉴了GNU的tar结构
 struct posix_tar_header
 {				/* byte offset */
 	char name[100];		/*   0 */
@@ -169,14 +156,7 @@ struct posix_tar_header
 	/* 500 */
 };
 
-/*****************************************************************************
- *                                untar
- *****************************************************************************/
-/**
- * Extract the tar file and store them.
- * 
- * @param filename The tar file.
- *****************************************************************************/
+//此函数使得内核可以读取cmd.tar，并且将包解开
 void untar(const char * filename)
 {
 	printf("[extract `%s'\n", filename);
@@ -193,11 +173,11 @@ void untar(const char * filename)
 
 		struct posix_tar_header * phdr = (struct posix_tar_header *)buf;
 
-		/* calculate the file size */
+		//计算文件大小
 		char * p = phdr->size;
 		int f_len = 0;
 		while (*p)
-			f_len = (f_len * 8) + (*p++ - '0'); /* octal */
+			f_len = (f_len * 8) + (*p++ - '0'); //八进制
 
 		int bytes_left = f_len;
 		int fdout = open(phdr->name, O_CREAT | O_RDWR);
@@ -222,13 +202,8 @@ void untar(const char * filename)
 	printf(" done]\n");
 }
 
-/*****************************************************************************
- *                                shabby_shell
- *****************************************************************************/
-/**
- * A very very simple shell.
- * 
- * @param tty_name  TTY file name.
+//写一个shell来执行，功能是读取命令并执行
+//参数 tty_name 就是 TTY文件名.
  *****************************************************************************/
 void shabby_shell(const char * tty_name)
 {
@@ -241,6 +216,7 @@ void shabby_shell(const char * tty_name)
 
 	while (1) {
 		write(1, "$ ", 2);
+		//使用read()读取用户输入
 		int r = read(0, rdbuf, 70);
 		rdbuf[r] = 0;
 
@@ -267,7 +243,7 @@ void shabby_shell(const char * tty_name)
 
 		int fd = open(argv[0], O_RDWR);
 		if (fd == -1) {
-			if (rdbuf[0]) {
+			if (rdbuf[0]) {//若是不合法命令则只会回显
 				write(1, "{", 1);
 				write(1, rdbuf, r);
 				write(1, "}\n", 2);
@@ -276,11 +252,12 @@ void shabby_shell(const char * tty_name)
 		else {
 			close(fd);
 			int pid = fork();
-			if (pid != 0) { /* parent */
+			//fork()出一个子进程，在子进程中将输入交给execv执行
+			if (pid != 0) { //父进程
 				int s;
 				wait(&s);
 			}
-			else {	/* child */
+			else {	//子进程
 				execv(argv[0], argv);
 			}
 		}
@@ -300,34 +277,44 @@ void Init()
 
 	printf("Init() is running ...\n");
 
-	/* extract `cmd.tar' */
-	untar("/cmd.tar");
-			
 
-	char * tty_list[] = {"/dev_tty1", "/dev_tty2"};
-    //看自己是父进程还是子进程
-	int i;
-	for (i = 0; i < sizeof(tty_list) / sizeof(tty_list[0]); i++) {
-		int pid = fork();
-		if (pid != 0) { /* parent process */
-			printf("[parent is running, child pid:%d]\n", pid);
-		}
-		else {	/* child process */
-			printf("[child is running, pid:%d]\n", getpid());
-			close(fd_stdin);
-			close(fd_stdout);
-			
-			shabby_shell(tty_list[i]);
-			assert(0);
-		}
+	untar("/cmd.tar");
+
+	int pid = fork();
+	if (pid != 0) { /* parent process */
+		printf("parent is running, child pid:%d\n", pid);
+		int s;
+		int child = wait(&s);
+		printf("child (%d) exited with status: %d.\n", child, s);
+	}
+	else {	/* child process */
+		execl("/echo", "echo", "hello", "world", 0);
 	}
 
+//	char * tty_list[] = {"/dev_tty1", "/dev_tty2"};
+//    //看自己是父进程还是子进程
+//	int i;
+//	for (i = 0; i < sizeof(tty_list) / sizeof(tty_list[0]); i++) {
+//		int pid = fork();
+//		if (pid != 0) { //是父进程
+//			printf("[parent is running, child pid:%d]\n", pid);
+//		}
+//		else {
+//			printf("[child is running, pid:%d]\n", getpid());
+//			close(fd_stdin);
+//			close(fd_stdout);
+//
+//			shabby_shell(tty_list[i]);
+//			assert(0);
+//		}
+//	}
+    //为了防止僵尸进程的出现，Init需要不断的wait
 	while (1) {
 		int s;
 		int child = wait(&s);
 		printf("child (%d) exited with status: %d.\n", child, s);
 	}
-
+	spin("Init");
 	assert(0);
 }
 

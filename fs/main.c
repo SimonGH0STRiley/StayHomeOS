@@ -277,19 +277,18 @@ PRIVATE void mkfs()
 	for (i = 1; i < sb.nr_smap_sects; i++)
 		WR_SECT(ROOT_DEV, 2 + sb.nr_imap_sects + i);
 
-	/* cmd.tar */
-	/* make sure it'll not be overwritten by the disk log */
+	//构造一个 cmd.tar 存储应用程序，OS启动的时候解开，确保不会被磁盘日志覆盖
 	assert(INSTALL_START_SECT + INSTALL_NR_SECTS < 
 	       sb.nr_sects - NR_SECTS_FOR_LOG);
-	int bit_offset = INSTALL_START_SECT -
-		sb.n_1st_sect + 1; /* sect M <-> bit (M - sb.n_1stsect + 1) */
+	//使得M <- bit (M - sb.n_1st_sect + 1)
+	int bit_offset = INSTALL_START_SECT - sb.n_1st_sect + 1;
 	int bit_off_in_sect = bit_offset % (SECTOR_SIZE * 8);
 	int bit_left = INSTALL_NR_SECTS;
 	int cur_sect = bit_offset / (SECTOR_SIZE * 8);
 	RD_SECT(ROOT_DEV, 2 + sb.nr_imap_sects + cur_sect);
 	while (bit_left) {
 		int byte_off = bit_off_in_sect / 8;
-		/* this line is ineffecient in a loop, but I don't care */
+		//实际上无效的循环
 		fsbuf[byte_off] |= 1 << (bit_off_in_sect % 8);
 		bit_left--;
 		bit_off_in_sect++;
@@ -324,7 +323,7 @@ PRIVATE void mkfs()
 		pi->i_start_sect = MAKE_DEV(DEV_CHAR_TTY, i);
 		pi->i_nr_sects = 0;
 	}
-	/* inode of `/cmd.tar' */
+	//设置cmd.tar的inode
 	pi = (struct inode*)(fsbuf + (INODE_SIZE * (NR_CONSOLES + 1)));
 	pi->i_mode = I_REGULAR;
 	pi->i_size = INSTALL_NR_SECTS * SECTOR_SIZE;
@@ -562,23 +561,17 @@ PRIVATE int fs_fork()
 }
 
 
-/*****************************************************************************
- *                                fs_exit
- *****************************************************************************/
-/**
- * Perform the aspects of exit() that relate to files.
- * 
- * @return Zero if success.
- *****************************************************************************/
+
+//当有进程exit后要告知文件系统
 PRIVATE int fs_exit()
 {
 	int i;
 	struct proc* p = &proc_table[fs_msg.PID];
 	for (i = 0; i < NR_FILES; i++) {
 		if (p->filp[i]) {
-			/* release the inode */
+			//进程退出后，此节点记录数-1
 			p->filp[i]->fd_inode->i_cnt--;
-			/* release the file desc slot */
+			//此节点不再记录进程则删去
 			if (--p->filp[i]->fd_cnt == 0)
 				p->filp[i]->fd_inode = 0;
 			p->filp[i] = 0;

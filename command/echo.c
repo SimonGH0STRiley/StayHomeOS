@@ -1,5 +1,5 @@
 #include "stdio.h"
-
+//参考UNIX的echo
 int main(int argc, char * argv[])
 {
 	int i;

@@ -14,8 +14,8 @@
  * @attention INSTALL_NR_SECTS should be a multiple of NR_DEFAULT_FILE_SECTS:
  *                INSTALL_NR_SECTS = n * NR_DEFAULT_FILE_SECTS (n=1,2,3,...)
  */
-#define	INSTALL_START_SECT		0x8000
-#define	INSTALL_NR_SECTS		0x800
+#define	INSTALL_START_SECT		0x8000  //cmd.tar的首扇区的扇区号
+#define	INSTALL_NR_SECTS		0x800   //cmd.tar的大小，此处表示1MB
 
 /**
  * boot parameters are stored by the loader, they should be

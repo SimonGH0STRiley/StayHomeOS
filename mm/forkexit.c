@@ -1,11 +1,3 @@
-/*************************************************************************//**
- *****************************************************************************
- * @file   forkexit.c
- * @brief  
- * @author Forrest Y. Yu
- * @date   Tue May  6 00:37:15 2008
- *****************************************************************************
- *****************************************************************************/
 
 #include "type.h"
 #include "stdio.h"
@@ -122,75 +114,38 @@ PUBLIC int do_fork()
 	return 0;
 }
 
-/*****************************************************************************
- *                                do_exit
- *****************************************************************************/
-/**
- * Perform the exit() syscall.
- *
- * If proc A calls exit(), then MM will do the following in this routine:
- *     <1> inform FS so that the fd-related things will be cleaned up
- *     <2> free A's memory
- *     <3> set A.exit_status, which is for the parent
- *     <4> depends on parent's status. if parent (say P) is:
- *           (1) WAITING
- *                 - clean P's WAITING bit, and
- *                 - send P a message to unblock it
- *                 - release A's proc_table[] slot
- *           (2) not WAITING
- *                 - set A's HANGING bit
- *     <5> iterate proc_table[], if proc B is found as A's child, then:
- *           (1) make INIT the new parent of B, and
- *           (2) if INIT is WAITING and B is HANGING, then:
- *                 - clean INIT's WAITING bit, and
- *                 - send INIT a message to unblock it
- *                 - release B's proc_table[] slot
- *               else
- *                 if INIT is WAITING but B is not HANGING, then
- *                     - B will call exit()
- *                 if B is HANGING but INIT is not WAITING, then
- *                     - INIT will call wait()
- *
- * TERMs:
- *     - HANGING: everything except the proc_table entry has been cleaned up.
- *     - WAITING: a proc has at least one child, and it is waiting for the
- *                child(ren) to exit()
- *     - zombie: say P has a child A, A will become a zombie if
- *         - A exit(), and
- *         - P does not wait(), neither does it exit(). that is to say, P just
- *           keeps running without terminating itself or its child
- * 
- * @param status  Exiting status for parent.
- * 
- *****************************************************************************/
+
+//注意防止僵尸进程的出现
 PUBLIC void do_exit(int status)
 {
 	int i;
-	int pid = mm_msg.source; /* PID of caller */
+	int pid = mm_msg.source;
 	int parent_pid = proc_table[pid].p_parent;
 	struct proc * p = &proc_table[pid];
 
-	/* tell FS, see fs_exit() */
+	//告诉文件系统此消息
 	MESSAGE msg2fs;
 	msg2fs.type = EXIT;
 	msg2fs.PID = pid;
 	send_recv(BOTH, TASK_FS, &msg2fs);
-
+    //释放此进程的内存
 	free_mem(pid);
-
+    //将其状态设置为传过来的参数，表示父进程的状态
 	p->exit_status = status;
-
-	if (proc_table[parent_pid].p_flags & WAITING) { /* parent is waiting */
+    //如果父进程处在waiting状态，则清楚p的waiting位，给p发送信息解除阻塞，并释放proc_table[]表项
+	if (proc_table[parent_pid].p_flags & WAITING) {
 		proc_table[parent_pid].p_flags &= ~WAITING;
 		cleanup(&proc_table[pid]);
 	}
-	else { /* parent is not waiting */
+	else { //若父进程不在waiting状态，中将子进程挂起，防止出错
 		proc_table[pid].p_flags |= HANGING;
 	}
 
-	/* if the proc has any child, make INIT the new parent */
+    //如果发现此进程有子进程，则将子进程的父进程改成Init进程，
+    //再判断INIT进程是否处于waiting状态和子进程是不是出于挂起状态，若是则清空Init的waiting，并发送非阻塞信息，删除子进程进程表
+
 	for (i = 0; i < NR_TASKS + NR_PROCS; i++) {
-		if (proc_table[i].p_parent == pid) { /* is a child */
+		if (proc_table[i].p_parent == pid) {
 			proc_table[i].p_parent = INIT;
 			if ((proc_table[INIT].p_flags & WAITING) &&
 			    (proc_table[i].p_flags & HANGING)) {
@@ -201,46 +156,21 @@ PUBLIC void do_exit(int status)
 	}
 }
 
-/*****************************************************************************
- *                                cleanup
- *****************************************************************************/
-/**
- * Do the last jobs to clean up a proc thoroughly:
- *     - Send proc's parent a message to unblock it, and
- *     - release proc's proc_table[] entry
- * 
- * @param proc  Process to clean up.
- *****************************************************************************/
+//将进程完全清理；
+//参数 proc表示将要清理的进程
 PRIVATE void cleanup(struct proc * proc)
 {
+    //将信息发给父进程
 	MESSAGE msg2parent;
 	msg2parent.type = SYSCALL_RET;
 	msg2parent.PID = proc2pid(proc);
 	msg2parent.STATUS = proc->exit_status;
 	send_recv(SEND, proc->p_parent, &msg2parent);
-
+    //进程的进程表清空标志
 	proc->p_flags = FREE_SLOT;
 }
 
-/*****************************************************************************
- *                                do_wait
- *****************************************************************************/
-/**
- * Perform the wait() syscall.
- *
- * If proc P calls wait(), then MM will do the following in this routine:
- *     <1> iterate proc_table[],
- *         if proc A is found as P's child and it is HANGING
- *           - reply to P (cleanup() will send P a messageto unblock it)
- *           - release A's proc_table[] entry
- *           - return (MM will go on with the next message loop)
- *     <2> if no child of P is HANGING
- *           - set P's WAITING bit
- *     <3> if P has no child at all
- *           - reply to P with error
- *     <4> return (MM will go on with the next message loop)
- *
- *****************************************************************************/
+
 PUBLIC void do_wait()
 {
 	int pid = mm_msg.source;
@@ -248,6 +178,7 @@ PUBLIC void do_wait()
 	int i;
 	int children = 0;
 	struct proc* p_proc = proc_table;
+	//遍历proc_table[]，如果发现A是P的子进程，且正在hanging，则向p发消息接触阻塞，并释放A的进程表项
 	for (i = 0; i < NR_TASKS + NR_PROCS; i++,p_proc++) {
 		if (p_proc->p_parent == pid) {
 			children++;
@@ -257,13 +188,11 @@ PUBLIC void do_wait()
 			}
 		}
 	}
-
+    //如果没有子进程在hanging，则设置waiting位
 	if (children) {
-		/* has children, but no child is HANGING */
 		proc_table[pid].p_flags |= WAITING;
 	}
-	else {
-		/* no child at all */
+	else {//若没有子进程则向此进程发送消息携带错误信息
 		MESSAGE msg;
 		msg.type = SYSCALL_RET;
 		msg.PID = NO_TASK;
