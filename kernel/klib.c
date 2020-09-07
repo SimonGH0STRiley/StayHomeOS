@@ -1,11 +1,3 @@
-/*************************************************************************//**
- *****************************************************************************
- * @file   klib.c
- * @brief  
- * @author Forrest Y. Yu
- * @date   2005
- *****************************************************************************
- *****************************************************************************/
 
 #include "type.h"
 #include "config.h"
@@ -24,47 +16,27 @@
 #include "elf.h"
 
 
-/*****************************************************************************
- *                                get_boot_params
- *****************************************************************************/
-/**
- * <Ring 0~1> The boot parameters have been saved by LOADER.
- *            We just read them out.
- * 
- * @param pbp  Ptr to the boot params structure
- *****************************************************************************/
+
+ //得到boot的参数，boot的参数被存储在loader中，我们只需读出
 PUBLIC void get_boot_params(struct boot_params * pbp)
 {
-	/**
-	 * Boot params should have been saved at BOOT_PARAM_ADDR.
-	 * @see include/load.inc boot/loader.asm boot/hdloader.asm
-	 */
+
+	//Boot参数应该被存在BOOT_PARAM_ADDR.
+
 	int * p = (int*)BOOT_PARAM_ADDR;
 	assert(p[BI_MAG] == BOOT_PARAM_MAGIC);
 
 	pbp->mem_size = p[BI_MEM_SIZE];
 	pbp->kernel_file = (unsigned char *)(p[BI_KERNEL_FILE]);
 
-	/**
-	 * the kernel file should be a ELF executable,
-	 * check it's magic number
-	 */
+
+	//核文件是ELF
 	assert(memcmp(pbp->kernel_file, ELFMAG, SELFMAG) == 0);
 }
 
 
-/*****************************************************************************
- *                                get_kernel_map
- *****************************************************************************/
-/**
- * <Ring 0~1> Parse the kernel file, get the memory range of the kernel image.
- *
- * - The meaning of `base':	base => first_valid_byte
- * - The meaning of `limit':	base + limit => last_valid_byte
- * 
- * @param b   Memory base of kernel.
- * @param l   Memory limit of kernel.
- *****************************************************************************/
+
+ //得到内核的位置，基址、限制大小
 PUBLIC int get_kernel_map(unsigned int * b, unsigned int * l)
 {
 	struct boot_params bp;
@@ -72,7 +44,7 @@ PUBLIC int get_kernel_map(unsigned int * b, unsigned int * l)
 
 	Elf32_Ehdr* elf_header = (Elf32_Ehdr*)(bp.kernel_file);
 
-	/* the kernel file should be in ELF format */
+	//核文件应该是ELF的格式
 	if (memcmp(elf_header->e_ident, ELFMAG, SELFMAG) != 0)
 		return -1;
 
@@ -101,9 +73,7 @@ PUBLIC int get_kernel_map(unsigned int * b, unsigned int * l)
 	return 0;
 }
 
-/*======================================================================*
-                               itoa
- *======================================================================*/
+
 PUBLIC char * itoa(char * str, int num)/* 数字前面的 0 不被显示出来, 比如 0000B800 被显示成 B800 */
 {
 	char *	p = str;
@@ -137,9 +107,6 @@ PUBLIC char * itoa(char * str, int num)/* 数字前面的 0 不被显示出来, 
 }
 
 
-/*======================================================================*
-                               disp_int
- *======================================================================*/
 PUBLIC void disp_int(int input)
 {
 	char output[16];
@@ -147,15 +114,13 @@ PUBLIC void disp_int(int input)
 	disp_str(output);
 }
 
-/*======================================================================*
-                               delay
- *======================================================================*/
+
 PUBLIC void delay(int time)
 {
 	int i, j, k;
 	for(k=0;k<time;k++){
-		/*for(i=0;i<10000;i++){	for Virtual PC	*/
-		for(i=0;i<10;i++){/*	for Bochs	*/
+		/*for(i=0;i<10000;i++){	针对 Virtual PC	*/
+		for(i=0;i<10;i++){/*	为 Bochs	*/
 			for(j=0;j<10000;j++){}
 		}
 	}
