@@ -25,13 +25,7 @@ PUBLIC void do_fork_test();
 
 PRIVATE void init_mm();
 
-/*****************************************************************************
- *                                task_mm
- *****************************************************************************/
-/**
- * <Ring 1> The main loop of TASK MM.
- * 
- *****************************************************************************/
+//内存管理的主函数，一直在循环，接受信息并调用相应程序处理
 PUBLIC void task_mm()
 {
 	init_mm();
@@ -71,13 +65,7 @@ PUBLIC void task_mm()
 	}
 }
 
-/*****************************************************************************
- *                                init_mm
- *****************************************************************************/
-/**
- * Do some initialization work.
- * 
- *****************************************************************************/
+//赋值初始化的工作
 PRIVATE void init_mm()
 {
 	struct boot_params bp;
@@ -85,21 +73,14 @@ PRIVATE void init_mm()
 
 	memory_size = bp.mem_size;
 
-	/* print memory size */
+	//打印出内存的大小
 	printl("{MM} memsize:%dMB\n", memory_size / (1024 * 1024));
 }
 
-/*****************************************************************************
- *                                alloc_mem
- *****************************************************************************/
-/**
- * Allocate a memory block for a proc.
- * 
- * @param pid  Which proc the memory is for.
- * @param memsize  How many bytes is needed.
- * 
- * @return  The base of the memory just allocated.
- *****************************************************************************/
+//给一个进程分配内存块
+//参数 pid 表示为了哪个进程分配
+//参数 memsize表示此进程需要多少字节
+//返回分配内存的基地址
 PUBLIC int alloc_mem(int pid, int memsize)
 {
 	assert(pid >= (NR_TASKS + NR_NATIVE_PROCS));
@@ -119,19 +100,7 @@ PUBLIC int alloc_mem(int pid, int memsize)
 	return base;
 }
 
-/*****************************************************************************
- *                                free_mem
- *****************************************************************************/
-/**
- * Free a memory block. Because a memory block is corresponding with a PID, so
- * we don't need to really `free' anything. In another word, a memory block is
- * dedicated to one and only one PID, no matter what proc actually uses this
- * PID.
- * 
- * @param pid  Whose memory is to be freed.
- * 
- * @return  Zero if success.
- *****************************************************************************/
+//释放一个内存块，实际上我们没有释放，因为PID和进程挂钩，无论什么进程用这个内存都可以给这个PID/
 PUBLIC int free_mem(int pid)
 {
 	return 0;

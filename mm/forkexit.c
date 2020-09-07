@@ -23,23 +23,17 @@
 
 PRIVATE void cleanup(struct proc * proc);
 
-/*****************************************************************************
- *                                do_fork
- *****************************************************************************/
-/**
- * Perform the fork() syscall.
- * 
- * @return  Zero if success, otherwise -1.
- *****************************************************************************/
+//相应fork()函数中的系统调用
+//成功返回0,否则返回-1
 PUBLIC int do_fork()
 {
-	/* find a free slot in proc_table */
+	//在proc_table中找到一个空的槽位
 	struct proc* p = proc_table;
 	int i;
 	for (i = 0; i < NR_TASKS + NR_PROCS; i++,p++)
 		if (p->p_flags == FREE_SLOT)
 			break;
-
+   //分配进程表，找到槽位后存放子进程的进程表
 	int child_pid = i;
 	assert(p == &proc_table[child_pid]);
 	assert(child_pid >= NR_TASKS + NR_NATIVE_PROCS);
@@ -47,7 +41,7 @@ PUBLIC int do_fork()
 		return -1;
 	assert(i < NR_TASKS + NR_PROCS);
 
-	/* duplicate the process table */
+	//将父进程的进程表复制给子进程
 	int pid = mm_msg.source;
 	u16 child_ldt_sel = p->ldt_sel;
 	*p = proc_table[pid];
@@ -55,54 +49,51 @@ PUBLIC int do_fork()
 	p->p_parent = pid;
 	sprintf(p->name, "%s_%d", proc_table[pid].name, child_pid);
 
-	/* duplicate the process: T, D & S */
+	//开始复制进程内容
 	struct descriptor * ppd;
 
-	/* Text segment */
+	//代码部分
 	ppd = &proc_table[pid].ldts[INDEX_LDT_C];
-	/* base of T-seg, in bytes */
+	//基地址
 	int caller_T_base  = reassembly(ppd->base_high, 24,
 					ppd->base_mid,  16,
 					ppd->base_low);
-	/* limit of T-seg, in 1 or 4096 bytes,
-	   depending on the G bit of descriptor */
+	//代码最大限度
 	int caller_T_limit = reassembly(0, 0,
 					(ppd->limit_high_attr2 & 0xF), 16,
 					ppd->limit_low);
-	/* size of T-seg, in bytes */
+	//代码长度
 	int caller_T_size  = ((caller_T_limit + 1) *
 			      ((ppd->limit_high_attr2 & (DA_LIMIT_4K >> 8)) ?
 			       4096 : 1));
 
-	/* Data & Stack segments */
+	//数据和堆栈的复制
 	ppd = &proc_table[pid].ldts[INDEX_LDT_RW];
-	/* base of D&S-seg, in bytes */
+
 	int caller_D_S_base  = reassembly(ppd->base_high, 24,
 					  ppd->base_mid,  16,
 					  ppd->base_low);
-	/* limit of D&S-seg, in 1 or 4096 bytes,
-	   depending on the G bit of descriptor */
+	// 数据和堆栈的限度
 	int caller_D_S_limit = reassembly((ppd->limit_high_attr2 & 0xF), 16,
 					  0, 0,
 					  ppd->limit_low);
-	/* size of D&S-seg, in bytes */
+
 	int caller_D_S_size  = ((caller_T_limit + 1) *
 				((ppd->limit_high_attr2 & (DA_LIMIT_4K >> 8)) ?
 				 4096 : 1));
 
-	/* we don't separate T, D & S segments, so we have: */
+	//一起检测
 	assert((caller_T_base  == caller_D_S_base ) &&
 	       (caller_T_limit == caller_D_S_limit) &&
 	       (caller_T_size  == caller_D_S_size ));
 
-	/* base of child proc, T, D & S segments share the same space,
-	   so we allocate memory just once */
+    //定义子进程的基址，代码段、数据段和堆栈分享，所以只要分配一次即可
 	int child_base = alloc_mem(child_pid, caller_T_size);
 
-	/* child is a copy of the parent */
+
 	phys_copy((void*)child_base, (void*)caller_T_base, caller_T_size);
 
-	/* child's LDT */
+	//子进程的LDT更新，由于内存空间不足
 	init_desc(&p->ldts[INDEX_LDT_C],
 		  child_base,
 		  (PROC_IMAGE_SIZE_DEFAULT - 1) >> LIMIT_4K_SHIFT,
@@ -112,16 +103,16 @@ PUBLIC int do_fork()
 		  (PROC_IMAGE_SIZE_DEFAULT - 1) >> LIMIT_4K_SHIFT,
 		  DA_LIMIT_4K | DA_32 | DA_DRW | PRIVILEGE_USER << 5);
 
-	/* tell FS, see fs_fork() */
+    //告诉FS，父子进程间共享文件
 	MESSAGE msg2fs;
 	msg2fs.type = FORK;
 	msg2fs.PID = child_pid;
 	send_recv(BOTH, TASK_FS, &msg2fs);
 
-	/* child PID will be returned to the parent proc */
+	//将子进程的PID返回给父进程
 	mm_msg.PID = child_pid;
 
-	/* birth of the child */
+	//给子进程发消息，解除阻塞
 	MESSAGE m;
 	m.type = SYSCALL_RET;
 	m.RETVAL = 0;

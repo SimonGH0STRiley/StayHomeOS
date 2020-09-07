@@ -151,6 +151,32 @@ PUBLIC void init_prot() {
 
         init_idt_desc(INT_VECTOR_IRQ8 + 7,      DA_386IGate,
                       hwint15,                  PRIVILEGE_KRNL);
+
+     init_idt_desc(INT_VECTOR_SYS_CALL,	DA_386IGate,
+		      sys_call,			PRIVILEGE_USER);
+
+
+	//在GDT的TSS描述器中填入相应信息
+	memset(&tss, 0, sizeof(tss));
+	tss.ss0	= SELECTOR_KERNEL_DS;
+	init_desc(&gdt[INDEX_TSS],
+		  makelinear(SELECTOR_KERNEL_DS, &tss),
+		  sizeof(tss) - 1,
+		  DA_386TSS);
+	tss.iobase = sizeof(tss);
+
+	//在GDT中的每个进程的LDT中填入相应信息，见书中的关系1和2
+	int i;
+	for (i = 0; i < NR_TASKS + NR_PROCS; i++) {
+		memset(&proc_table[i], 0, sizeof(struct proc));
+
+		proc_table[i].ldt_sel = SELECTOR_LDT_FIRST + (i << 3);
+		assert(INDEX_LDT_FIRST + i < GDT_SIZE);
+		init_desc(&gdt[INDEX_LDT_FIRST + i],
+			  makelinear(SELECTOR_KERNEL_DS, proc_table[i].ldts),
+			  LDT_SIZE * sizeof(struct descriptor) - 1,
+			  DA_LDT);
+	}
 }
 
 /*======================================================================*

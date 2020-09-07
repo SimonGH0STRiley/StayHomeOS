@@ -20,18 +20,9 @@
 #include "proto.h"
 
 
-/*****************************************************************************
- *                                fork
- *****************************************************************************/
-/**
- * Create a child process, which is actually a copy of the caller.
- * 
- * @return   On success, the PID of the child process is returned in the
- *         parent's thread of execution, and a 0 is returned in the child's
- *         thread of execution.
- *           On failure, a -1 will be returned in the parent's context, no
- *         child process will be created.
- *****************************************************************************/
+//创建子进程，调用fork()时说明MM收到一个FORK消息
+//如果成功了，则在父进程中返回子进程的PID，在子进程中返回0
+//如果失败了，返回-1，不创建进程
 PUBLIC int fork()
 {
 	MESSAGE msg;

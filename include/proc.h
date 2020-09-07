@@ -81,7 +81,7 @@ struct task {
 /* Number of tasks & processes */
 #define NR_TASKS		5
 #define NR_PROCS		32
-#define NR_NATIVE_PROCS		4
+#define NR_NATIVE_PROCS		4       //表示系统初启动时有多少个用户进程
 #define FIRST_PROC		proc_table[0]
 #define LAST_PROC		proc_table[NR_TASKS + NR_PROCS - 1]
 
@@ -93,9 +93,9 @@ struct task {
  * @see global.c
  * @see global.h
  */
-#define	PROCS_BASE		0xA00000 /* 10 MB */
+#define	PROCS_BASE		0xA00000 /* 将10 MB的空间给用户进程使用 */
 #define	PROC_IMAGE_SIZE_DEFAULT	0x100000 /*  1 MB */
-#define	PROC_ORIGIN_STACK	0x400    /*  1 KB */
+#define	PROC_ORIGIN_STACK	0x400    /*  进程一开始的堆栈大小 */
 
 /* stacks of tasks */
 #define	STACK_SIZE_DEFAULT	0x4000 /* 16 KB */

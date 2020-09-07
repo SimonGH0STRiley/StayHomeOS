@@ -1,8 +1,6 @@
 
 /*++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
                             main.c
-++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-                                                    Forrest Yu, 2005
 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++*/
 
 #include "type.h"
@@ -38,7 +36,7 @@ PUBLIC int kernel_main()
 	struct proc * p = proc_table;
 
 	char * stk = task_stack + STACK_SIZE_TOTAL;
-
+    //将暂时没用到的proc_table[]表项的p_flags成员赋值为FREE_SLOT，帮助MM判断此处是否为空
 	for (i = 0; i < NR_TASKS + NR_PROCS; i++,p++,t++) {
 		if (i >= NR_TASKS + NR_NATIVE_PROCS) {
 			p->p_flags = FREE_SLOT;
@@ -71,7 +69,7 @@ PUBLIC int kernel_main()
 			p->ldts[INDEX_LDT_C].attr1  = DA_C   | priv << 5;
 			p->ldts[INDEX_LDT_RW].attr1 = DA_DRW | priv << 5;
 		}
-		else {		/* INIT process */
+		else {		//如果是Init进程则将其单独区分出来，LDT单独赋值，为fork出的其他进程省位置
 			unsigned int k_base;
 			unsigned int k_limit;
 			int ret = get_kernel_map(&k_base, &k_limit);
@@ -292,13 +290,7 @@ void shabby_shell(const char * tty_name)
 	close(0);
 }
 
-/*****************************************************************************
- *                                Init
- *****************************************************************************/
-/**
- * The hen.
- * 
- *****************************************************************************/
+/*  Init() 作为用户进程的祖先，与fork（）配合使用*/
 void Init()
 {
 	int fd_stdin  = open("/dev_tty0", O_RDWR);
@@ -313,7 +305,7 @@ void Init()
 			
 
 	char * tty_list[] = {"/dev_tty1", "/dev_tty2"};
-
+    //看自己是父进程还是子进程
 	int i;
 	for (i = 0; i < sizeof(tty_list) / sizeof(tty_list[0]); i++) {
 		int pid = fork();

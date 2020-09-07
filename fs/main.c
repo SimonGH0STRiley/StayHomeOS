@@ -545,14 +545,8 @@ PUBLIC void sync_inode(struct inode * p)
 	WR_SECT(p->i_dev, blk_nr);
 }
 
-/*****************************************************************************
- *                                fs_fork
- *****************************************************************************/
-/**
- * Perform the aspects of fork() that relate to files.
- * 
- * @return Zero if success, otherwise a negative integer.
- *****************************************************************************/
+//和fork()函数配合使用，子进程会使用inode所以i_cnt加一，子进程和父进程共用file_desc,所以fd_cnt+1**
+//当有进程退出的时候要记得减掉，正确执行返回0，否则返回其他
 PRIVATE int fs_fork()
 {
 	int i;
