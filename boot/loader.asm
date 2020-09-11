@@ -131,8 +131,14 @@ LABEL_FILENAME_FOUND:				; 找到 KERNEL.BIN 后便来到这里继续
 	push	eax
 	mov	eax, [es : di + 01Ch]		; ┳ 保存 KERNEL.BIN 文件大小
 	mov	dword [dwKernelSize], eax	; ┛
-	pop	eax
+	cmp eax, KernelValidSpace		; 和预留空间比较
+	jbe LABEL_START_LOADING_FILE	; 内核大小不大于空间时加载
+	mov dh, 3						; 否则内核过大
+	call	DispStrRealMode			; 显示字符串
+	jmp $							; 进入死循环
 
+LABEL_START_LOADING_FILE:
+	pop	eax
 	add	di, 01Ah					; di -> 首 Sector
 	mov	cx, word [es:di]
 	push	cx						; 保存此 Sector 在 FAT 中的序号
@@ -164,6 +170,12 @@ LABEL_GOON_LOADING_FILE:
 	add	ax, dx
 	add	ax, DeltaSectorNo
 	add	bx, [BPB_BytsPerSec]
+	jnc	LABEL_GOON_LOADING_FILE		; 如果 bx 重新变成 0，说明内核大于 64K
+	push	ax			; es += 0x1000  ← es 指向下一个段
+	mov	ax, es
+	add	ax, 1000h
+	mov	es, ax
+	pop	ax
 	jmp	LABEL_GOON_LOADING_FILE
 
 LABEL_FILE_LOADED:
@@ -212,6 +224,7 @@ MessageLength		equ	9
 LoadMessage:		db	"Loading  "
 Message1			db	"Ready.   "
 Message2			db	"No KERNEL"
+Message3			db	"TOO LARGE"
 ;============================================================================
 
 ;----------------------------------------------------------------------------
@@ -382,7 +395,15 @@ LABEL_PM_START:
 	call	InitKernel
 
 	;jmp	$
-
+	; 写入启动参数，以便内核使用
+	mov	dword [BOOT_PARAM_ADDR], BOOT_PARAM_MAGIC	; BootParam[0] = BootParamMagic;
+	mov	eax, [dwMemSize]				;
+	mov	[BOOT_PARAM_ADDR + 4], eax			; BootParam[1] = MemSize;
+	mov	eax, BaseOfKernelFile
+	shl	eax, 4
+	add	eax, OffsetOfKernelFile
+	mov	[BOOT_PARAM_ADDR + 8], eax			; BootParam[2] = KernelFilePhyAddr;
+	
 	;***************************************************************
 	jmp	SelectorFlatC:KernelEntryPointPhyAddr	; 正式进入内核 *
 	;***************************************************************

@@ -71,9 +71,9 @@ PUBLIC void task_fs()
 		case EXIT:
 			fs_msg.RETVAL = fs_exit();
 			break;
-		/* case LSEEK: */
-		/* 	fs_msg.OFFSET = do_lseek(); */
-		/* 	break; */
+		case LSEEK:
+		 	fs_msg.OFFSET = do_lseek();
+		 	break;
 		case STAT:
 			fs_msg.RETVAL = do_stat();
 			break;
@@ -106,7 +106,7 @@ PUBLIC void task_fs()
 		case WRITE:
 		case FORK:
 		case EXIT:
-		/* case LSEEK: */
+		case LSEEK:
 		case STAT:
 			break;
 		case RESUME_PROC:
@@ -155,8 +155,14 @@ PRIVATE void init_fs()
 	assert(dd_map[MAJOR(ROOT_DEV)].driver_nr != INVALID_DRIVER);
 	send_recv(BOTH, dd_map[MAJOR(ROOT_DEV)].driver_nr, &driver_msg);
 
-	/* make FS */
-	mkfs();
+	/* read the super block of ROOT DEVICE */
+	RD_SECT(ROOT_DEV, 1);
+
+	sb = (struct super_block *)fsbuf;
+	if (sb->magic != MAGIC_V1) {
+		printl("{FS} mkfs\n");
+		mkfs(); /* make FS */
+	}
 
 	/* load super block of ROOT */
 	read_super_block(ROOT_DEV);
@@ -277,18 +283,19 @@ PRIVATE void mkfs()
 	for (i = 1; i < sb.nr_smap_sects; i++)
 		WR_SECT(ROOT_DEV, 2 + sb.nr_imap_sects + i);
 
-	//构造一个 cmd.tar 存储应用程序，OS启动的时候解开，确保不会被磁盘日志覆盖
+	/* cmd.tar */
+	/* make sure it'll not be overwritten by the disk log */
 	assert(INSTALL_START_SECT + INSTALL_NR_SECTS < 
 	       sb.nr_sects - NR_SECTS_FOR_LOG);
-	//使得M <- bit (M - sb.n_1st_sect + 1)
-	int bit_offset = INSTALL_START_SECT - sb.n_1st_sect + 1;
+	int bit_offset = INSTALL_START_SECT -
+		sb.n_1st_sect + 1; /* sect M <-> bit (M - sb.n_1stsect + 1) */
 	int bit_off_in_sect = bit_offset % (SECTOR_SIZE * 8);
 	int bit_left = INSTALL_NR_SECTS;
 	int cur_sect = bit_offset / (SECTOR_SIZE * 8);
 	RD_SECT(ROOT_DEV, 2 + sb.nr_imap_sects + cur_sect);
 	while (bit_left) {
 		int byte_off = bit_off_in_sect / 8;
-		//实际上无效的循环
+		/* this line is ineffecient in a loop, but I don't care */
 		fsbuf[byte_off] |= 1 << (bit_off_in_sect % 8);
 		bit_left--;
 		bit_off_in_sect++;
@@ -323,7 +330,7 @@ PRIVATE void mkfs()
 		pi->i_start_sect = MAKE_DEV(DEV_CHAR_TTY, i);
 		pi->i_nr_sects = 0;
 	}
-	//设置cmd.tar的inode
+	/* inode of `/cmd.tar' */
 	pi = (struct inode*)(fsbuf + (INODE_SIZE * (NR_CONSOLES + 1)));
 	pi->i_mode = I_REGULAR;
 	pi->i_size = INSTALL_NR_SECTS * SECTOR_SIZE;
@@ -544,8 +551,14 @@ PUBLIC void sync_inode(struct inode * p)
 	WR_SECT(p->i_dev, blk_nr);
 }
 
-//和fork()函数配合使用，子进程会使用inode所以i_cnt加一，子进程和父进程共用file_desc,所以fd_cnt+1**
-//当有进程退出的时候要记得减掉，正确执行返回0，否则返回其他
+/*****************************************************************************
+ *                                fs_fork
+ *****************************************************************************/
+/**
+ * Perform the aspects of fork() that relate to files.
+ * 
+ * @return Zero if success, otherwise a negative integer.
+ *****************************************************************************/
 PRIVATE int fs_fork()
 {
 	int i;
@@ -561,17 +574,23 @@ PRIVATE int fs_fork()
 }
 
 
-
-//当有进程exit后要告知文件系统
+/*****************************************************************************
+ *                                fs_exit
+ *****************************************************************************/
+/**
+ * Perform the aspects of exit() that relate to files.
+ * 
+ * @return Zero if success.
+ *****************************************************************************/
 PRIVATE int fs_exit()
 {
 	int i;
 	struct proc* p = &proc_table[fs_msg.PID];
 	for (i = 0; i < NR_FILES; i++) {
 		if (p->filp[i]) {
-			//进程退出后，此节点记录数-1
+			/* release the inode */
 			p->filp[i]->fd_inode->i_cnt--;
-			//此节点不再记录进程则删去
+			/* release the file desc slot */
 			if (--p->filp[i]->fd_cnt == 0)
 				p->filp[i]->fd_inode = 0;
 			p->filp[i] = 0;

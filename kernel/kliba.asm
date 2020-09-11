@@ -1,4 +1,9 @@
 
+; ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+;                              klib.asm
+; ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+;                                                           TF 141, 2020
+; ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 %include "sconst.inc"
 
@@ -27,10 +32,14 @@ global	glitter
 ;		   void disp_str(char * info);
 ; ========================================================================
 disp_str:
-	push	ebp
+    push    ebp
+    push    esi
+    push    edi
+    push    eax
+    push    ebx
 	mov	ebp, esp
 
-	mov	esi, [ebp + 8]	; pszInfo
+	mov	esi, [ebp + 24]	; pszInfo
 	mov	edi, [disp_pos]
 	mov	ah, 0Fh
 .1:
@@ -58,19 +67,27 @@ disp_str:
 .2:
 	mov	[disp_pos], edi
 
-	pop	ebp
-	ret
+    pop ebx
+    pop eax
+    pop edi
+    pop esi
+    pop ebp
+    ret 
 
 ; ========================================================================
 ;		   void disp_color_str(char * info, int color);
 ; ========================================================================
 disp_color_str:
-	push	ebp
+    push    ebp
+    push    esi
+    push    edi
+    push    eax
+    push    ebx
 	mov	ebp, esp
 
-	mov	esi, [ebp + 8]	; pszInfo
+	mov	esi, [ebp + 24]	; pszInfo
 	mov	edi, [disp_pos]
-	mov	ah, [ebp + 12]	; color
+	mov	ah, [ebp + 28]	; color
 .1:
 	lodsb
 	test	al, al
@@ -96,8 +113,12 @@ disp_color_str:
 .2:
 	mov	[disp_pos], edi
 
-	pop	ebp
-	ret
+    pop ebx
+    pop eax
+    pop edi
+    pop esi
+    pop ebp
+    ret 
 
 ; ========================================================================
 ;		   void out_byte(u16 port, u8 value);

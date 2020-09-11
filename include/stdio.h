@@ -1,4 +1,11 @@
-
+/*************************************************************************//**
+ *****************************************************************************
+ * @file   stdio.h
+ * @brief  
+ * @author Forrest Y. Yu
+ * @date   2008
+ *****************************************************************************
+ *****************************************************************************/
 
 #ifndef	_ORANGES_STDIO_H_
 #define	_ORANGES_STDIO_H_
@@ -23,6 +30,7 @@ void assertion_failure(char *exp, char *file, char *base_file, int line);
 
 #define	O_CREAT		1
 #define	O_RDWR		2
+#define	O_TRUNC		4
 
 #define SEEK_SET	1
 #define SEEK_CUR	2
@@ -112,6 +120,9 @@ PUBLIC int	read		(int fd, void *buf, int count);
 
 /* lib/write.c */
 PUBLIC int	write		(int fd, const void *buf, int count);
+
+/* lib/lseek.c */
+PUBLIC	int	lseek		(int fd, int offset, int whence);
 
 /* lib/unlink.c */
 PUBLIC	int	unlink		(const char *pathname);

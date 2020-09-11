@@ -1,12 +1,12 @@
 ASM			= nasm
 ASMBFLAGS	= -I include/
 DASMFLAGS	= -D
-DESTDIR		= ../build
-BINFILE     = boot.bin
-COMFILE     = boot.com
-LOADERFILE 	= loader.bin
+DESTDIR		= ../build/boot
+BINFILE     = ../build/boot.bin
+COMFILE     = ../build/boot.com
+LOADERFILE 	= ../build/loader.bin
 
-FILES = $(DESTDIR)/$(COMFILE) $(DESTDIR)/$(BINFILE) $(DESTDIR)/$(LOADERFILE)
+FILES = $(COMFILE) $(BINFILE) $(LOADERFILE)
 
 .PHONY : all clean bootbin bootcom loader
 
@@ -15,15 +15,15 @@ nop: bootbin loader
 clean:
 	$(RM) $(FILES)
 
-bootbin: $(DESTDIR)/$(BINFILE) $(DESTDIR)/$(LOADERFILE)
+bootbin: $(BINFILE) $(LOADERFILE)
 
-bootcom: $(DESTDIR)/$(COMFILE) $(DESTDIR)/$(LOADERFILE)
+bootcom: $(COMFILE) $(LOADERFILE)
 
-$(DESTDIR)/$(BINFILE): boot.asm include/load.inc include/fat12hdr.inc
+$(BINFILE): boot.asm include/load.inc include/fat12hdr.inc
 	$(ASM) $(ASMBFLAGS) -o $@ $<
 
-$(DESTDIR)/$(COMFILE): boot.asm include/load.inc include/fat12hdr.inc
+$(COMFILE): boot.asm include/load.inc include/fat12hdr.inc
 	$(ASM) $(ASMBFLAGS) -DBOOT_DEBUG -o $@ $<
 
-$(DESTDIR)/$(LOADERFILE): loader.asm include/load.inc include/fat12hdr.inc include/pm.inc
+$(LOADERFILE): loader.asm include/load.inc include/fat12hdr.inc include/pm.inc
 	$(ASM) $(ASMBFLAGS) -o $@ $<
