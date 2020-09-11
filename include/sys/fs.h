@@ -1,14 +1,12 @@
-/*************************************************************************//**
+/*****************************************************************************
  *****************************************************************************
  * @file   include/sys/fs.h
- * @brief  Header file for File System.
- * @author Forrest Yu
- * @date   2008
+ * @author TF 141
  *****************************************************************************
  *****************************************************************************/
 
-#ifndef	_ORANGES_FS_H_
-#define	_ORANGES_FS_H_
+#ifndef	_STAYHOMEOS_FS_H_
+#define	_STAYHOMEOS_FS_H_
 
 /**
  * @struct dev_drv_map fs.h "include/sys/fs.h"
@@ -148,4 +146,4 @@ struct file_desc {
 				       fsbuf);
 
 	
-#endif /* _ORANGES_FS_H_ */
+#endif /* _STAYHOMEOS_FS_H_ */

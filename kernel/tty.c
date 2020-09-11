@@ -1,9 +1,9 @@
-/*************************************************************************//**
+/*****************************************************************************
  *****************************************************************************
  * @file   kernel/tty.c
  * @brief  The terminal driver.
  *
- * As a common driver, TTY accepts these MESSAGEs:
+ * As a common driver, TTY accepts these MESSAGES:
  *   - DEV_OPEN
  *   - DEV_READ
  *   - DEV_WRITE
@@ -31,8 +31,7 @@
  *             - tty_do_write() handles DEV_WRITE message
  *             - tty_write() handles TTY_WRITE message
  *
- * @author Forrest Y. Yu
- * @date   2008
+ * @author TF 141
  *****************************************************************************
  *****************************************************************************/
 

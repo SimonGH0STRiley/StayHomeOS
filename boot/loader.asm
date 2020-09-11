@@ -17,7 +17,7 @@ org  0100h
 
 
 ; GDT ------------------------------------------------------------------------------------------------------------------------------------------------------------
-;											段基址,				 段界限,							   属性
+;											段基址,				段界限,                         属性
 LABEL_GDT:				Descriptor				0,					0, 0								; 空描述符
 LABEL_DESC_FLAT_C:		Descriptor				0,			  0fffffh, DA_CR  | DA_32 | DA_LIMIT_4K		; 0 ~ 4G
 LABEL_DESC_FLAT_RW:		Descriptor				0,			  0fffffh, DA_DRW | DA_32 | DA_LIMIT_4K		; 0 ~ 4G

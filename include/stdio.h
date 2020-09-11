@@ -1,14 +1,12 @@
-/*************************************************************************//**
+/*****************************************************************************
  *****************************************************************************
  * @file   stdio.h
- * @brief  
- * @author Forrest Y. Yu
- * @date   2008
+ * @author TF 141
  *****************************************************************************
  *****************************************************************************/
 
-#ifndef	_ORANGES_STDIO_H_
-#define	_ORANGES_STDIO_H_
+#ifndef	_STAYHOMEOS_STDIO_H_
+#define	_STAYHOMEOS_STDIO_H_
 
 #include "type.h"
 
@@ -151,4 +149,4 @@ PUBLIC int	stat		(const char *path, struct stat *buf);
 PUBLIC	int	syslog		(const char *fmt, ...);
 
 
-#endif /* _ORANGES_STDIO_H_ */
+#endif /* _STAYHOMEOS_STDIO_H_ */

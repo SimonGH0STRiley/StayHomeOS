@@ -1,12 +1,13 @@
+/*****************************************************************************
+ *****************************************************************************
+ * @file   console.h
+ * @author TF 141
+ *****************************************************************************
+ *****************************************************************************/
 
-/*++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-			      console.h
-++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-						    Forrest Yu, 2005
-++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++*/
 
-#ifndef _ORANGES_CONSOLE_H_
-#define _ORANGES_CONSOLE_H_
+#ifndef _STAYHOMEOS_CONSOLE_H_
+#define _STAYHOMEOS_CONSOLE_H_
 
 /* CONSOLE */
 typedef struct s_console
@@ -29,4 +30,4 @@ typedef struct s_console
 #define GRAY_CHAR		(MAKE_COLOR(BLACK, BLACK) | BRIGHT)
 #define RED_CHAR		(MAKE_COLOR(BLUE, RED) | BRIGHT)
 
-#endif /* _ORANGES_CONSOLE_H_ */
+#endif /* _STAYHOMEOS_CONSOLE_H_ */

@@ -81,37 +81,37 @@ _start:
 	; 此时内存看上去是这样的（更详细的内存情况在 LOADER.ASM 中有说明）：
 	;              ┃                                    ┃
 	;              ┃                 ...                ┃
-	;              ┣━━━━━━━━━━━━━━━━━━┫
-	;              ┃■■■■■■Page  Tables■■■■■■┃
-	;              ┃■■■■■(大小由LOADER决定)■■■■┃ PageTblBase
-	;    00101000h ┣━━━━━━━━━━━━━━━━━━┫
-	;              ┃■■■■Page Directory Table■■■■┃ PageDirBase = 1M
-	;    00100000h ┣━━━━━━━━━━━━━━━━━━┫
-	;              ┃□□□□ Hardware  Reserved □□□□┃ B8000h ← gs
-	;       9FC00h ┣━━━━━━━━━━━━━━━━━━┫
-	;              ┃■■■■■■■LOADER.BIN■■■■■■┃ somewhere in LOADER ← esp
-	;       90000h ┣━━━━━━━━━━━━━━━━━━┫
-	;              ┃■■■■■■■KERNEL.BIN■■■■■■┃
-	;       80000h ┣━━━━━━━━━━━━━━━━━━┫
-	;              ┃■■■■■■■■KERNEL■■■■■■■┃ 30400h ← KERNEL 入口 (KernelEntryPointPhyAddr)
-	;       30000h ┣━━━━━━━━━━━━━━━━━━┫
+	;              ┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+	;              ┃■■■■■■■■■■■ Page  Tables ■■■■■■■■■■■┃
+	;              ┃■■■■■■■■ (Decided By Loader) ■■■■■■■┃ PageTblBase
+	;    00101000h ┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+	;              ┃■■■■■■■ Page Directory Table ■■■■■■■┃ PageDirBase = 1M
+	;    00100000h ┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+	;              ┃□□□□□□□□ Hardware Reserved □□□□□□□□□┃ B8000h ← gs
+	;       9FC00h ┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+	;              ┃■■■■■■■■■■■■ LOADER.BIN ■■■■■■■■■■■■┃ somewhere in LOADER ← esp
+	;       90000h ┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+	;              ┃■■■■■■■■■■■■ KERNEL.BIN ■■■■■■■■■■■■┃
+	;       80000h ┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+	;              ┃■■■■■■■■■■■■■■ KERNEL ■■■■■■■■■■■■■■┃ 30400h ← KERNEL 入口 (KernelEntryPointPhyAddr)
+	;       30000h ┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
 	;              ┋                 ...                ┋
 	;              ┋                                    ┋
-	;           0h ┗━━━━━━━━━━━━━━━━━━┛ ← cs, ds, es, fs, ss
+	;           0h ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛ ← cs, ds, es, fs, ss
 	;
 	;
 	; GDT 以及相应的描述符是这样的：
 	;
 	;		              Descriptors               Selectors
-	;              ┏━━━━━━━━━━━━━━━━━━┓
+	;              ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 	;              ┃         Dummy Descriptor           ┃
-	;              ┣━━━━━━━━━━━━━━━━━━┫
+	;              ┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
 	;              ┃         DESC_FLAT_C    (0～4G)     ┃   8h = cs
-	;              ┣━━━━━━━━━━━━━━━━━━┫
+	;              ┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
 	;              ┃         DESC_FLAT_RW   (0～4G)     ┃  10h = ds, es, fs, ss
-	;              ┣━━━━━━━━━━━━━━━━━━┫
+	;              ┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
 	;              ┃         DESC_VIDEO                 ┃  1Bh = gs
-	;              ┗━━━━━━━━━━━━━━━━━━┛
+	;              ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
 	;
 	; 注意! 在使用 C 代码的时候一定要保证 ds, es, ss 这几个段寄存器的值是一样的
 	; 因为编译器有可能编译出使用它们的代码, 而编译器默认它们是一样的. 比如串拷贝操作会用到 ds 和 es.
@@ -154,12 +154,12 @@ csinit:		; “这个跳转指令强制使用刚刚初始化的结构”——<<O
 	in	al, INT_M_CTLMASK	; `.
 	or	al, (1 << %1)		;  | 屏蔽当前中断
 	out	INT_M_CTLMASK, al	; /
-	mov	al, EOI			; `. 置EOI位
+	mov	al, EOI			    ; `. 置EOI位
 	out	INT_M_CTL, al		; /
-	sti	; CPU在响应中断的过程中会自动关中断，这句之后就允许响应新的中断
-	push	%1			; `.
+	sti	                    ; CPU在响应中断的过程中会自动关中断，这句之后就允许响应新的中断
+	push	%1			    ; `.
 	call	[irq_table + 4 * %1]	;  | 中断处理程序
-	pop	ecx			; /
+	pop	ecx			        ; /
 	cli
 	in	al, INT_M_CTLMASK	; `.
 	and	al, ~(1 << %1)		;  | 恢复接受当前中断
@@ -206,18 +206,18 @@ hwint07:		; Interrupt routine for irq 7 (printer)
 	in	al, INT_S_CTLMASK	; `.
 	or	al, (1 << (%1 - 8))	;  | 屏蔽当前中断
 	out	INT_S_CTLMASK, al	; /
-	mov	al, EOI			; `. 置EOI位(master)
+	mov	al, EOI			    ; `. 置EOI位(master)
 	out	INT_M_CTL, al		; /
-	nop				; `. 置EOI位(slave)
+	nop				        ; `. 置EOI位(slave)
 	out	INT_S_CTL, al		; /  一定注意：slave和master都要置EOI
 	sti	; CPU在响应中断的过程中会自动关中断，这句之后就允许响应新的中断
-	push	%1			; `.
+	push	%1			            ; `.
 	call	[irq_table + 4 * %1]	;  | 中断处理程序
-	pop	ecx			; /
+	pop	ecx			                ; /
 	cli
-	in	al, INT_S_CTLMASK	; `.
+	in	al, INT_S_CTLMASK	    ; `.
 	and	al, ~(1 << (%1 - 8))	;  | 恢复接受当前中断
-	out	INT_S_CTLMASK, al	; /
+	out	INT_S_CTLMASK, al	    ; /
 	ret
 %endmacro
 ; ---------------------------------
