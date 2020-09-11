@@ -460,6 +460,7 @@ PRIVATE int msg_receive(struct proc* current, int src, MESSAGE* m)
 		/* Set p_flags so that p_who_wanna_recv will not
 		 * be scheduled until it is unblocked.
 		 */
+		disable_int();
 		p_who_wanna_recv->p_flags |= RECEIVING;
 
 		p_who_wanna_recv->p_msg = m;
@@ -476,6 +477,7 @@ PRIVATE int msg_receive(struct proc* current, int src, MESSAGE* m)
 		assert(p_who_wanna_recv->p_recvfrom != NO_TASK);
 		assert(p_who_wanna_recv->p_sendto == NO_TASK);
 		assert(p_who_wanna_recv->has_int_msg == 0);
+		enable_int();
 	}
 
 	return 0;
