@@ -165,46 +165,61 @@ void untar(const char * filename)
 
 	char buf[SECTOR_SIZE * 16];
 	int chunk = sizeof(buf);
+	int i = 0;
+	int bytes = 0;
 
 	while (1) {
-		read(fd, buf, SECTOR_SIZE);
-		if (buf[0] == 0)
+		bytes = read(fd, buf, SECTOR_SIZE);
+		assert(bytes == SECTOR_SIZE);
+		if (buf[0] == 0) {
+			if (i == 0)
+				printf("    need not unpack the file.\n");
 			break;
+		}
+		i++;
 
 		struct posix_tar_header * phdr = (struct posix_tar_header *)buf;
 
-		//计算文件大小
+		// 计算文件大小
 		char * p = phdr->size;
 		int f_len = 0;
 		while (*p)
-			f_len = (f_len * 8) + (*p++ - '0'); //八进制
+			f_len = (f_len * 8) + (*p++ - '0'); // Tar 文件中的文件大小为八进制
 
 		int bytes_left = f_len;
-		int fdout = open(phdr->name, O_CREAT | O_RDWR);
+		int fdout = open(phdr->name, O_CREAT | O_RDWR | O_TRUNC);
 		if (fdout == -1) {
 			printf("    failed to extract file: %s\n", phdr->name);
-			printf(" aborted]");
+			printf(" aborted]\n");
+			close(fd);
 			return;
 		}
-		printf("    %s (%d bytes)\n", phdr->name, f_len);
+		printf("    %s\n", phdr->name);
 		while (bytes_left) {
 			int iobytes = min(chunk, bytes_left);
 			read(fd, buf,
 			     ((iobytes - 1) / SECTOR_SIZE + 1) * SECTOR_SIZE);
-			write(fdout, buf, iobytes);
+			bytes = write(fdout, buf, iobytes);
+			assert(bytes == iobytes);
 			bytes_left -= iobytes;
 		}
 		close(fdout);
 	}
 
+	if (i) {
+		lseek(fd, 0, SEEK_SET);
+		buf[0] = 0;
+		bytes = write(fd, buf, 1);
+		assert(bytes == 1);
+	}
+
 	close(fd);
 
-	printf(" done]\n");
+	printf(" done, %d files extracted]\n", i);
 }
 
 //写一个shell来执行，功能是读取命令并执行
 //参数 tty_name 就是 TTY文件名.
- *****************************************************************************/
 void shabby_shell(const char * tty_name)
 {
 	int fd_stdin  = open(tty_name, O_RDWR);
@@ -267,7 +282,7 @@ void shabby_shell(const char * tty_name)
 	close(0);
 }
 
-/*  Init() 作为用户进程的祖先，与fork（）配合使用*/
+/*  Init() 作为用户进程的祖先，与fork()配合使用*/
 void Init()
 {
 	int fd_stdin  = open("/dev_tty0", O_RDWR);
@@ -277,37 +292,27 @@ void Init()
 
 	printf("Init() is running ...\n");
 
-
+	/* 解压 `cmd.tar' */
 	untar("/cmd.tar");
 
-	int pid = fork();
-	if (pid != 0) { /* parent process */
-		printf("parent is running, child pid:%d\n", pid);
-		int s;
-		int child = wait(&s);
-		printf("child (%d) exited with status: %d.\n", child, s);
-	}
-	else {	/* child process */
-		execl("/echo", "echo", "hello", "world", 0);
+	char * tty_list[] = {"/dev_tty1", "/dev_tty2"};
+
+	int i;
+	for (i = 0; i < sizeof(tty_list) / sizeof(tty_list[0]); i++) {
+		int pid = fork();
+		if (pid != 0) { /* parent process */
+			printf("[parent is running, child pid:%d]\n", pid);
+		}
+		else {	/* child process */
+			printf("[child is running, pid:%d]\n", getpid());
+			close(fd_stdin);
+			close(fd_stdout);
+			
+			shabby_shell(tty_list[i]);
+			assert(0);
+		}
 	}
 
-//	char * tty_list[] = {"/dev_tty1", "/dev_tty2"};
-//    //看自己是父进程还是子进程
-//	int i;
-//	for (i = 0; i < sizeof(tty_list) / sizeof(tty_list[0]); i++) {
-//		int pid = fork();
-//		if (pid != 0) { //是父进程
-//			printf("[parent is running, child pid:%d]\n", pid);
-//		}
-//		else {
-//			printf("[child is running, pid:%d]\n", getpid());
-//			close(fd_stdin);
-//			close(fd_stdout);
-//
-//			shabby_shell(tty_list[i]);
-//			assert(0);
-//		}
-//	}
     //为了防止僵尸进程的出现，Init需要不断的wait
 	while (1) {
 		int s;

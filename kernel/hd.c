@@ -197,7 +197,6 @@ PRIVATE void hd_rdwt(MESSAGE * p)
 	while (bytes_left) {
 		int bytes = min(SECTOR_SIZE, bytes_left);
 		if (p->type == DEV_READ) {
-			//printl("Wait");	// I dunno why it works, maybe it brings delay?
 			interrupt_wait();
 			port_read(REG_DATA, hdbuf, SECTOR_SIZE);
 			phys_copy(la, (void*)va2la(TASK_HD, hdbuf), bytes);

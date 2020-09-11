@@ -16,7 +16,6 @@ clean:
 	$(RM) $(LIB) $(DESTLOBJS)
 
 $(LIB) : $(DESTLOBJS)
-	echo $^
 	$(AR) $(ARFLAGS) $@ $^
 
 $(DESTDIR)/%.o: %.c
@@ -26,6 +25,4 @@ $(DESTDIR)/%.o: %.asm
 	$(ASM) $(ASMKFLAGS) -o $@ $<
 
 createdir:
-ifeq (,$(wildcard $(DESTDIR)))
 	mkdir -p $(DESTDIR)
-endif

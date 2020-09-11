@@ -49,18 +49,10 @@ $(LIB):
 	$(MAKE) -C lib
 
 createdir:
-ifeq (,$(wildcard $(DESTDIR)))
 	mkdir -p $(DESTDIR)
-endif
-ifeq (,$(wildcard $(DESTDIR)/kernel))
 	mkdir -p $(DESTDIR)/kernel
-endif
-ifeq (,$(wildcard $(DESTDIR)/fs))
 	mkdir -p $(DESTDIR)/fs
-endif
-ifeq (,$(wildcard $(DESTDIR)/mm))
 	mkdir -p $(DESTDIR)/mm
-endif
 
 buildimg: createdir bootbin kernel
 ifeq (,$(wildcard $(FDFILE)))
