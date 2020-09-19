@@ -53,6 +53,7 @@ createdir:
 	mkdir -p $(DESTDIR)/kernel
 	mkdir -p $(DESTDIR)/fs
 	mkdir -p $(DESTDIR)/mm
+	mkdir -p $(DESTDIR)/lib
 
 buildimg: createdir bootbin kernel
 ifeq (,$(wildcard $(FDFILE)))

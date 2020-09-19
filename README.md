@@ -13,23 +13,22 @@ WSL(Windows Subsystem for Linux) 和 macOS 可能需要手动完成某些步骤�
 - GCC
 - GNU Make
 - [Mtools](https://www.gnu.org/software/mtools/manual/mtools.html)（注意不是MongoDB的脚本集合）
+- libc6-dev-i386
 
 为了运行和调试，可能需要以下部分软件：
 
 - [Bochs](http://bochs.sourceforge.net/)、[QEMU](https://www.qemu.org/)、[VirtualBox](https://www.virtualbox.org/) 等x86虚拟机软件
+  - 如果需要使用配套的工具生成适用的硬盘映像，建议使用支持 RAW 格式的虚拟机，比如 Bochs
 - [FreeDOS](http://www.freedos.org/) 或者其他的DOS环境
 - 一个顺手的软盘映像编辑软件
 
+
+
 ## 生成
 
-在终端执行`make`，会在 build 文件夹内生成 `boot.img`，里面包含了自行编写的启动扇区、加载器(`loader.bin`)和系统内核(`kernel.bin`)。
+在终端执行 `make`，会在 build 文件夹内生成 `boot.img`，里面包含了自行编写的启动扇区、加载器(`loader.bin`)和系统内核(`kernel.bin`)。
 
-如果想生成用于调试的可执行文件，请执行 `make debugimg`，执行后会在 build 文件夹内生成两个文件：
-
-- `boot.com`（启动扇区可执行文件）
-- `debug.img`（在boot.img基础上增加了boot.com文件，但不包括启动扇区的软盘映像）
-
-前者需要复制到DOS环境中，而后者可以直接被虚拟机加载读取或者写入软盘。
+如果想编译配套的小工具，请确保已经在根目录解压附带的 `80m.img.gz` 硬盘镜像压缩包，并手动进入 `command` 文件夹，执行 `make install` 命令，可以自动将打包好的 `cmd.tar` 写入到硬盘镜像中去。
 
 ## 调试
 

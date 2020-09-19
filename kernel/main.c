@@ -58,7 +58,7 @@ PUBLIC int kernel_main()
                         priv	= PRIVILEGE_USER;
                         rpl     = RPL_USER;
                         eflags  = 0x202;	/* IF=1, bit 2 is always 1 */
-			            prio    = 5;
+			            prio    = (i - NR_TASKS + 1) * 5;
                 }
 
 		strcpy(p->name, t->name);	/* name of the process */
@@ -119,7 +119,7 @@ PUBLIC int kernel_main()
 	p_proc_ready	= proc_table;
 
 	init_clock();
-        init_keyboard();
+	init_keyboard();
 
 	restart();
 
@@ -336,7 +336,17 @@ void Init()
  *======================================================================*/
 void TestA()
 {
-	for(;;);
+	int interval = 0;
+	int count = 0;
+	for(;;)
+	{
+		if (++interval > 100000)
+		{
+			disp_pos = 25 * 160 - 2 * 10;
+			disp_int(++count);
+			interval = 0;
+		}
+	}
 }
 
 /*======================================================================*
@@ -344,15 +354,35 @@ void TestA()
  *======================================================================*/
 void TestB()
 {
-	for(;;);
+	int interval = 0;
+	int count = 0;
+	for(;;)
+	{
+		if (++interval > 100000)
+		{
+			disp_pos = 26 * 160 - 2 * 10;
+			disp_int(++count);
+			interval = 0;
+		}
+	}
 }
 
 /*======================================================================*
-                               TestB
+                               TestC
  *======================================================================*/
 void TestC()
 {
-	for(;;);
+	int interval = 0;
+	int count = 0;
+	for(;;)
+	{
+		if (++interval > 100000)
+		{
+			disp_pos = 27 * 160 - 2 * 10;
+			disp_int(++count);
+			interval = 0;
+		}
+	}
 }
 
 /*****************************************************************************

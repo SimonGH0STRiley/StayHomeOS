@@ -93,6 +93,7 @@ PUBLIC void out_char(CONSOLE* con, char ch)
 	 */
 	int cursor_x = (con->cursor - con->orig) % SCR_WIDTH;
 	int cursor_y = (con->cursor - con->orig) / SCR_WIDTH;
+	int tab_len = 2;
 
 	switch(ch) {
 	case '\n':
@@ -103,6 +104,15 @@ PUBLIC void out_char(CONSOLE* con, char ch)
 			con->cursor--;
 			*(pch - 2) = ' ';
 			*(pch - 1) = DEFAULT_CHAR_COLOR;
+		}
+		break;
+	case '\r':
+		break;	// ignore
+	case '\t':
+	    while (tab_len-- > 0){
+			*pch++ = ' ';
+			*pch++ = DEFAULT_CHAR_COLOR;
+			con->cursor++;
 		}
 		break;
 	default:

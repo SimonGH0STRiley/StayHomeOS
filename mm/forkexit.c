@@ -89,7 +89,8 @@ PUBLIC int do_fork()
 
     //定义子进程的基址，代码段、数据段和堆栈分享，所以只要分配一次即可
 	int child_base = alloc_mem(child_pid, caller_T_size);
-
+	printl("{MM} 0x%x<- 0x%x (0x%x bytes)\n",
+			child_base, caller_T_base, caller_T_size);
 
 	phys_copy((void*)child_base, (void*)caller_T_base, caller_T_size);
 
